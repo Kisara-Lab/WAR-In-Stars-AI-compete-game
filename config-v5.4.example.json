@@ -1,0 +1,20 @@
+{
+  "rulesRevision": "5.4",
+  "saveVersion": 5,
+  "emergencyRules": {
+    "duration": 1800,
+    "reserveFraction": 0.1,
+    "governanceCap": 0.5,
+    "crisisTarget": 19,
+    "unityTarget": 6000,
+    "requestDays": 180,
+    "ultimatumDays": 180,
+    "excludedRecoveryStructures": ["shipyard", "drydock", "maintenance", "lrs"]
+  },
+  "commands": [
+    {"type":"activate_extraction","args":{}},
+    {"type":"demand_stop_extraction","args":{"factionId":"umbra","eventId":"从查询结果取得"}},
+    {"type":"accept_stop_extraction","args":{"demandId":"从收到的要求取得"}}
+  ],
+  "notes": "这是规则配置及跨势力命令格式说明，不是可直接提交的同轮计划。数值由src/shared/emergency.ts集中管理；6000内部凝聚力单位等于显示60。"
+}

@@ -1,0 +1,13 @@
+.civilization-panel { margin: 12px 24px; padding: 16px; background: #111a2b; border: 1px solid #34435c; border-radius: 10px; }
+.civilization-panel > summary { cursor: pointer; color: #d5e7ff; font-weight: 600; }
+.war-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; max-height: 500px; overflow: auto; margin-top: 12px; }
+.war-card { background: #0b1322; border: 1px solid #34435c; border-radius: 8px; padding: 14px; min-width: 0; }
+.war-card h3 { margin: 0 0 8px; font-size: 15px; }
+.war-card small, .faith-summary small { display: block; line-height: 1.7; color: #9aacc6; }
+.war-card p, .faith-summary p { font-size: 12px; overflow-wrap: anywhere; }
+.war-card label, .faith-summary label { display: block; font-size: 12px; margin-top: 8px; }
+.war-card progress, .faith-summary progress { width: 100%; accent-color: #dcb472; height: 8px; }
+.war-goal { border-left: 2px solid #83b4d6; padding: 6px 10px; margin: 8px 0; }
+.faith-summary { border-top: 1px solid #2c3b52; margin-top: 10px; padding-top: 8px; font-size: 12px; }
+.faith-summary blockquote { margin: 8px 0; padding-left: 8px; border-left: 2px solid #dcb472; }
+@media (max-width: 760px) { .civilization-panel { margin: 8px; } .war-grid { grid-template-columns: 1fr; } }

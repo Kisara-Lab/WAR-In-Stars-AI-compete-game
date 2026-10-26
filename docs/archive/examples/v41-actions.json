@@ -1,0 +1,20 @@
+{
+  "prepare": {
+    "orders": [
+      { "type": "prepare_conquest", "args": { "factionId": "umbra", "reason": "根据已知边境军情公开准备征服；条约到期后再评估战争风险。" } }
+    ],
+    "summary": "支付准备费用，360日后重新评估，不自动开战。"
+  },
+  "declare_when_ready": {
+    "orders": [
+      { "type": "declare_war", "args": { "factionId": "umbra", "warType": "total", "systemIds": [], "reason": "兑现已经成熟且无条约限制的征服准备", "grievanceId": "REPLACE_WITH_ACTUAL_REASON_ID_FROM_GET_WARS" } }
+    ],
+    "summary": "只能使用get_wars返回的实际有效理由ID；目标须仍接壤且不在条约期。"
+  },
+  "cancel_in_another_turn": {
+    "orders": [
+      { "type": "cancel_conquest", "args": {} }
+    ],
+    "summary": "军情变化，撤回准备；不退还费用。"
+  }
+}

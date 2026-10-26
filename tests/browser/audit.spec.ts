@@ -1,0 +1,50 @@
+import { readFile } from 'node:fs/promises';
+import { expect, test } from '@playwright/test';
+
+test('审计筛选、决策详情、编年史导出和四方八方政策面板', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: '＋ 新比赛' }).click();
+  await page.getByLabel('控制方式').selectOption('scripted');
+  await page.getByLabel('AI 势力数量').selectOption('4');
+  await page.getByLabel('最大轮数').fill('8');
+  await page.getByRole('button', { name: '创建比赛', exact: true }).click();
+  await page.getByRole('button', { name: '▷ 单轮推进' }).click();
+  await expect(page.locator('.match-clock strong')).toHaveText('001');
+  await expect(page.locator('.faction-card').first()).toContainText('乌托邦');
+  await expect(page.locator('.faction-card').first()).toContainText('任期剩余 620 日');
+  await page.getByRole('button', { name: '完整审计日志', exact: true }).click();
+  const panel = page.getByRole('region', { name: '完整审计日志' });
+  await expect(panel).toContainText('完整审计');
+  await page.getByLabel('审计类别').selectOption('decision');
+  await expect(page.locator('.audit-record')).toHaveCount(4);
+  await page.locator('.audit-record summary').first().click();
+  await expect(page.locator('.audit-record pre').first()).toContainText('choose_policy');
+  await page.getByLabel('审计势力').selectOption('aurora');
+  await expect(page.locator('.audit-record')).toHaveCount(1);
+  await page.getByLabel('审计类别').selectOption('economy');
+  await expect(page.locator('.audit-record')).toHaveCount(10);
+  for (const [label, extension] of [['导出编年史 Markdown', '.md'], ['导出审计 JSONL', '.jsonl']]) {
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('link', { name: label }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toContain(extension);
+    const content = await readFile((await download.path())!, 'utf8');
+    expect(content).toContain(extension === '.md' ? '公开战略' : 'previousHash');
+  }
+  await page.getByLabel('观察势力').selectOption('aurora');
+  await expect(page.locator('.map-legend')).toContainText('LRS 覆盖');
+  await expect(page.locator('.system-panel')).toContainText('本地视野');
+  await page.getByRole('button', { name: '＋ 新比赛' }).click();
+  await page.getByLabel('AI 势力数量').selectOption('8');
+  await page.getByLabel('最大轮数').fill('1');
+  await page.getByRole('button', { name: '创建比赛', exact: true }).click();
+  await page.getByRole('button', { name: '▷ 单轮推进' }).click();
+  await expect(page.locator('.result-banner')).toBeVisible();
+  await expect(page.locator('.faction-card')).toHaveCount(8);
+  await page.getByLabel('审计类别').selectOption('decision');
+  await expect(page.locator('.audit-record')).toHaveCount(8);
+  await page.screenshot({ path: '.data/verification/audit-eight.png', fullPage: true });
+  expect(errors).toEqual([]);
+});

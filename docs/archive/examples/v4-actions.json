@@ -1,0 +1,18 @@
+{
+  "claim_this_round": {
+    "orders": [{ "type": "create_claim", "args": { "systemId": "s7" } }],
+    "summary": "预先宣称已探索且邻接的敌方非母星星系，等待下一回合。"
+  },
+  "claim_war_next_round": {
+    "orders": [{ "type": "declare_war", "args": { "factionId": "umbra", "warType": "claim", "systemIds": ["s7"], "reason": "夺取此前宣称的边境星系", "grievanceId": null } }],
+    "summary": "仅在宣称有效、和平且无互不侵犯条约时提交；不扩大战争目标。"
+  },
+  "religion_after_discovery": {
+    "orders": [{ "type": "establish_religion", "args": { "planetId": "s7-p0", "name": "群星守望教", "doctrine": "守护已发现的圣地和居民供给，战争应有明确目的。", "acknowledgePermanent": true } }],
+    "summary": "示例行星必须是已探索可达候选；确认永久国教且永远放弃乌托邦。"
+  },
+  "thought_defense": {
+    "orders": [{ "type": "integrate_thought", "args": { "systemId": "s0" } }],
+    "summary": "在己方实际控制的殖民星系开展720日思想整合。"
+  }
+}

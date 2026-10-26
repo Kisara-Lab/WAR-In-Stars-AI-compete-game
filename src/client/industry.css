@@ -1,0 +1,10 @@
+.industry-planet{margin:10px 0;color:#a9c3d8;font-size:11px;line-height:1.7}
+.industry-planet summary{cursor:pointer;color:#bde8e1}
+.industry-planet p{margin:8px 0;overflow-wrap:anywhere}
+.industry-planet table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px}
+.industry-planet th,.industry-planet td{text-align:left;padding:5px 3px;border-bottom:1px solid #293e50;overflow-wrap:anywhere;vertical-align:top}
+.industry-planet th{color:#7ea3bb;font-weight:400}
+.industry-planet th:first-child{width:28%}
+.industry-planet th:nth-child(3){width:28%}
+.industry-summary progress{width:100%;height:5px;accent-color:#6dd0be}
+.industry-summary{border-left:2px solid #437b76;padding-left:8px}

@@ -1,0 +1,8 @@
+{
+  "orders": [
+    { "type": "choose_policy", "args": { "policy": "balanced" } },
+    { "type": "build_structure", "args": { "planetId": "s0-p0", "structureType": "sanatorium" } },
+    { "type": "build_structure", "args": { "planetId": "s0-p0", "structureType": "lrs" } }
+  ],
+  "summary": "首届均衡发展，在母星建设疗养所和长程传感阵列，保留100矿物维护。实际行星ID和资源以本方情报为准。"
+}

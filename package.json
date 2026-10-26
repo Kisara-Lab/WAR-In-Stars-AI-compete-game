@@ -1,0 +1,64 @@
+{
+  "name": "war-in-stars",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,client \"tsx watch src/server/index.ts\" \"vite --host 127.0.0.1\"",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "simulate": "tsx scripts/simulate.ts",
+    "verify:match": "tsx scripts/verify-match.ts",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "smoke:ai": "tsx scripts/ai-smoke.ts",
+    "docs:check": "node scripts/check-docs.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "ws": "^8.18.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2",
+    "vitest": "^3.2.4"
+  },
+  "description": "Observable multi-model space 4X arena with civilizations, diplomacy, deterministic simulation and replay.",
+  "license": "MIT",
+  "author": "Kisara-Lab contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kisara-Lab/WAR-In-Stars-AI-compete-game.git"
+  },
+  "homepage": "https://github.com/Kisara-Lab/WAR-In-Stars-AI-compete-game#readme",
+  "bugs": {
+    "url": "https://github.com/Kisara-Lab/WAR-In-Stars-AI-compete-game/issues"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "4x",
+    "space-strategy",
+    "simulation",
+    "multi-agent",
+    "replay"
+  ]
+}

@@ -1,0 +1,16 @@
+.civil-summary { margin: 10px 0; color: #b3c4df; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.civil-summary small { display: block; color: #879dbd; }
+.civil-summary summary { cursor: pointer; color: #b8dfce; }
+.civil-summary p { margin: 5px 0; }
+.audit-panel { padding: 14px; font-size: 12px; }
+.audit-controls, .audit-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
+.audit-controls a { color: #8be5d8; border: 1px solid #37546a; padding: 8px 12px; border-radius: 5px; text-decoration: none; }
+.audit-filters label { display: grid; gap: 5px; color: #aec0db; }
+.audit-filters input, .audit-filters select { min-width: 110px; max-width: 230px; background: #121d30; border: 1px solid #354765; border-radius: 4px; padding: 6px; color: #d7e5fa; }
+.audit-record { border-bottom: 1px solid #26364f; padding: 10px; overflow-wrap: anywhere; }
+.audit-record summary { cursor: pointer; }
+.audit-record strong { margin-left: 12px; color: #85d9b9; }
+.audit-record.uncommitted strong { color: #e5b87f; }
+.audit-record pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 500px; overflow: auto; background: #0b1321; padding: 10px; }
+.timeline-panel.audit-expanded { height: auto; min-height: 440px; max-height: 900px; }
+.timeline-panel.audit-expanded .timeline-content { max-height: 820px; overflow: auto; }

@@ -1,0 +1,51 @@
+import { expect, test } from '@playwright/test';
+import { DEFAULT_CONFIG, factionRecord } from '../../src/shared/rules.js';
+import { createGame as createLatestGame } from '../../src/sim/world.js';
+const createGame: typeof createLatestGame = (config, id, revision = '4.3') => createLatestGame(config, id, revision);
+import { createWar } from '../../src/sim/wars.js';
+import { emptyMetrics } from '../../src/sim/bot.js';
+
+test('4.2成本、整合、文明成果与受限视角', async ({ page }) => {
+  const state = createGame(structuredClone(DEFAULT_CONFIG), 'browser-balance', '4.2');
+  createWar(state, ['aurora', 'umbra'], 'total').attackers = ['aurora'];
+  state.systems[0].annexation = { ownerId: 'aurora', warId: state.wars![0].id, startedDay: 0, controlledDays: 100 };
+  state.factions.aurora.faith = { name: '测试国教', doctrine: '浏览器合成场景', establishedDay: 0, crisis: 19, sites: [{ main: true, planetId: state.systems[0].planets[0].id, consecratedDay: 0, lossKeys: [], recoveryKeys: [] }], lossWindow: 0, lossUsed: 0, pending: [], triggers: {} };
+  state.civilizationAwards = [{ actor: 'aurora', category: 'faith', term: 0, day: 720, dedupKey: 'aurora:faith:0' }];
+  state.factions.aurora.stableFaith = { term: 1, totalDays: 100, qualifiedDays: 100, wholeTerm: true };
+  const snapshot = { state, lastDecisions: null, status: { phase: 'paused', running: false, busy: false, error: null, ai: factionRecord(state.config.factionIds, () => ({ status: '等待', requests: 0, actions: 0 })), metrics: factionRecord(state.config.factionIds, emptyMetrics), workers: [] } };
+  await page.route('**/api/state', route => route.fulfill({ json: snapshot }));
+  await page.routeWebSocket('**/ws', socket => socket.send(JSON.stringify(snapshot)));
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await expect(page.locator('.balance-summary').first()).toContainText('全舰维护 ×1.25');
+  await expect(page.locator('.balance-summary').first()).toContainText('文明成果 300 / 1500');
+  await expect(page.locator('.balance-summary').first()).toContainText('全资源产出×1.05');
+  await page.locator('.policy-comparison').first().locator('summary').click();
+  await expect(page.locator('.policy-comparison').first()).toContainText('国教禁止');
+  await expect(page.locator('.system-panel .annexation-detail').first()).toContainText('剩余 620');
+  await expect(page.locator('.civilization-panel')).toContainText('剩余 620');
+  await expect(page.locator('.civilization-panel')).toContainText('全线舰船维护 ×1.25');
+  await page.screenshot({ path: '.data/verification/balance-v42.png', fullPage: true });
+  await page.getByLabel('观察势力').selectOption('verdant');
+  await expect(page.locator('.balance-summary')).toHaveCount(1);
+  await expect(page.locator('.balance-summary')).not.toContainText('文明成果 300');
+  await expect(page.locator('.system-panel .annexation-detail')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('V5创建分支入口可用并保持暂停，审计编年史可导出', async ({ page }) => {
+  const created = await (await page.request.post('/api/matches', { data: { ...DEFAULT_CONFIG, controller: 'scripted' } })).json();
+  await page.goto('/');
+  await page.getByRole('button', { name: '存档 / 复盘', exact: true }).click();
+  await expect(page.getByRole('button', { name: '以V5.4创建分支', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '以V5.4创建分支', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const snapshot = await (await page.request.get('/api/state')).json();
+  expect(snapshot.state.rulesRevision).toBe('5.4');
+  expect(snapshot.state.id).not.toBe(created.state.id);
+  expect(snapshot.state.lineage.matchId).toBe(created.state.id);
+  expect(snapshot.status.phase).toBe('paused');
+  const chronicle = await page.request.get(`/api/matches/${snapshot.state.id}/export/markdown`);
+  expect(chronicle.ok()).toBeTruthy();
+  expect(await chronicle.text()).toContain('吞并整合与文明成果');
+});

@@ -1,0 +1,33 @@
+import { fileURLToPath } from 'node:url';
+import { DEFAULT_CONFIG } from '../shared/rules.js';
+import { SimulationPool, defaultWorkers } from '../sim/pool.js';
+import { createGame } from '../sim/world.js';
+import { createApplication } from './app.js';
+import { ModelProvider, readProviderConfig } from './provider.js';
+import { MatchRunner } from './runner.js';
+import { MatchStore } from './storage.js';
+
+const root = fileURLToPath(new URL('../../', import.meta.url));
+process.chdir(root);
+const pool = new SimulationPool(Number(process.env.WORKERS ?? defaultWorkers()));
+const providerFactory = async () => new ModelProvider(await readProviderConfig());
+const store = new MatchStore(process.env.MATCH_DATA ?? '.data/matches', process.env.SESSION_FILE ?? '.data/server-session.json');
+const checkpoint = await store.sessionCheckpoint();
+const runner = new MatchRunner(checkpoint?.state ?? createGame(structuredClone(DEFAULT_CONFIG)), pool, store, providerFactory);
+if (checkpoint) await runner.recover(checkpoint);
+else await runner.initialize();
+const { server, sockets } = createApplication(runner, providerFactory, root);
+const port = Number(process.env.PORT ?? 8787);
+server.listen(port, '127.0.0.1', () => { console.log(`WAR IN STARS  http://127.0.0.1:${port}  |  ${pool.size} simulation workers`); });
+let closing = false;
+const close = async () => {
+  if (closing) return;
+  closing = true;
+  for (const socket of sockets.clients) socket.close();
+  server.close();
+  await runner.close();
+  process.exit(0);
+};
+process.on('SIGINT', close);
+process.on('SIGTERM', close);
+server.on('error', async error => { console.error(error.message); await runner.close(); process.exitCode = 1; });

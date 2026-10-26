@@ -1,0 +1,9 @@
+{
+  "seed": "governance-a",
+  "factionIds": ["aurora", "umbra", "verdant", "cobalt"],
+  "systemCount": 24,
+  "maxRounds": 120,
+  "models": {"aurora": "grok-4.7", "umbra": "grok-4.7", "verdant": "grok-4.7", "cobalt": "grok-4.7"},
+  "controller": "scripted",
+  "workers": 8
+}

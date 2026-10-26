@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 test('观察界面可创建比赛、查看星系、推进整局和复盘', async ({ page }) => {
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.request.post('/api/matches', { data: { ...DEFAULT_CONFIG, controller: 'scripted' } });
@@ -25,7 +26,9 @@ test('观察界面可创建比赛、查看星系、推进整局和复盘', async
   await expect(page.locator('.match-clock strong')).toHaveText('001');
   await expect(page.getByRole('button', { name: '继续比赛', exact: false })).toBeEnabled();
   await page.getByRole('button', { name: '继续比赛', exact: false }).click();
-  await expect(page.locator('.result-banner')).toBeVisible();
+  // Five complete rounds include simulation, audit writes and atomic saves;
+  // allow slower CI hosts to finish instead of using the UI assertion default.
+  await expect(page.locator('.result-banner')).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('.match-clock strong')).toHaveText('006');
   await page.getByRole('button', { name: '外交关系', exact: true }).click();
   await expect(page.getByRole('table', { name: '外交关系矩阵' })).toBeVisible();

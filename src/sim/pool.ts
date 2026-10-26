@@ -4,8 +4,11 @@ import type { WorkerMetric } from '../shared/types.js';
 import { processLocal } from './local.js';
 import type { LocalInput, LocalOutput } from './local.js';
 
-export const maxWorkers = () => Math.max(1, availableParallelism() - 2);
-export const defaultWorkers = () => Math.min(8, maxWorkers());
+// Automatic sizing reserves CPU capacity; explicit sizes also support the
+// 0/2/8-worker reproducibility checks on smaller machines and CI runners.
+const recommendedWorkers = () => Math.max(1, availableParallelism() - 2);
+export const maxWorkers = () => Math.max(8, recommendedWorkers());
+export const defaultWorkers = () => Math.min(8, recommendedWorkers());
 
 interface Pending { resolve: (output: LocalOutput) => void; reject: (error: Error) => void; workerIndex: number }
 

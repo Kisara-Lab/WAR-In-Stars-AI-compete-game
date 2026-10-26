@@ -2,6 +2,29 @@
 
 欢迎中文或英文 Issue、讨论与 PR。We welcome contributions in Chinese or English.
 
+## Branch and PR workflow / 分支与 PR 流程
+
+`main` is protected, including for administrators. Create a topic branch from the latest `main`, commit your changes there, and open a pull request targeting `main`. Do not push directly, force-push, or delete `main`.
+
+Before merging, the branch must be up to date, all review conversations must be resolved, and these GitHub Actions checks must pass:
+
+- `Test and build (ubuntu-latest)`
+- `Test and build (windows-latest)`
+- `Browser (Linux Chromium)`
+
+An additional approving reviewer is currently optional, so a solo maintainer can merge a PR after the required checks pass. This does not waive the PR or CI requirements. Do not disable protection or bypass checks to merge a change.
+
+`main` 已开启保护，管理员同样受约束。后续修改均从最新 `main` 创建主题分支，通过 PR 合并；禁止直接推送、强制推送或删除主分支。合并前同步主分支、解决全部评审讨论，并通过上述三项 CI。当前不强制第二位维护者批准，单人维护也可以完成 PR 流程；不得因此绕过 PR 或 CI。
+
+```bash
+git switch main
+git pull --ff-only
+git switch -c feat/your-change
+# Edit, test and commit on this branch.
+git push -u origin feat/your-change
+# Open a pull request targeting main on GitHub.
+```
+
 ## Local development
 
 Use Node.js 24 or newer. Fork and clone the repository, then run:

@@ -12,8 +12,10 @@ import type { FactionId } from '../shared/rules.js';
 import type { Decision, DecisionMetrics, GameState, LiveSnapshot, LiveStatus, MatchConfig } from '../shared/types.js';
 import { advanceRound } from '../sim/engine.js';
 import { emptyMetrics, scriptedDecision } from '../sim/bot.js';
+import { adaptiveDecision, commitScriptMemory } from '../sim/adaptive-adapter.js';
 import { stateHash } from '../sim/math.js';
 import { SimulationPool } from '../sim/pool.js';
+import { PlanningPool, type PlanningConfig } from '../sim/planning-pool.js';
 import { migrateState } from '../sim/diplomacy.js';
 import { createGame } from '../sim/world.js';
 import type { ModelProvider } from './provider.js';
@@ -31,9 +33,11 @@ export class MatchRunner {
   }
   private abort: AbortController | null = null;
   private active: Promise<void> | null = null;
+  private planningPool?:PlanningPool;
+  private planningOptions:PlanningConfig={planningWorkers:process.env.PLANNING_WORKERS===undefined?undefined:Number(process.env.PLANNING_WORKERS),forecastWorkers:process.env.FORECAST_WORKERS===undefined?undefined:Number(process.env.FORECAST_WORKERS)};
   private listeners = new Set<() => void>();
 
-  constructor(state: GameState, public pool: SimulationPool, readonly store: MatchStore, private providerFactory: () => Promise<ModelProvider>, private scriptController: typeof scriptedDecision = scriptedDecision, private scriptAuditProjection = true) {
+  constructor(state: GameState, public pool: SimulationPool, readonly store: MatchStore, private providerFactory: () => Promise<ModelProvider>, private scriptController: (state:GameState,actor:string)=>Decision|Promise<Decision> = scriptedDecision, private scriptAuditProjection = true) {
     this.state = state;
     this.status = this.freshStatus();
   }
@@ -42,7 +46,7 @@ export class MatchRunner {
     return { phase: 'ready', running: false, busy: false, error: null, ai: factionRecord(factionIds(this.state), id => ({ status: this.state.factions[id].eliminatedDay === undefined ? '等待决策' : '已淘汰', requests: 0, actions: 0 })), metrics: factionRecord(factionIds(this.state), emptyMetrics), workers: this.pool.metrics };
   }
 
-  snapshot(): LiveSnapshot { return { state: this.state, status: { ...this.status, workers: this.pool.metrics }, lastDecisions: this.lastDecisions }; }
+  snapshot(): LiveSnapshot { return { state: this.state, status: { ...this.status, workers: this.pool.metrics,...(this.planningPool?{planning:this.planningPool.metrics}:{}) }, lastDecisions: this.lastDecisions }; }
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private emit() { for (const listener of this.listeners) listener(); }
   private checkpoint() { return { version: this.state.version, state: this.state, lastDecisions: this.lastDecisions, metrics: this.status.metrics }; }
@@ -71,9 +75,11 @@ export class MatchRunner {
     await this.store.save(this.checkpoint());
   }
 
-  async create(config: MatchConfig, workers = this.pool.size) {
+  async create(config: MatchConfig, workers = this.pool.size, planning:PlanningConfig={}) {
     if (this.status.busy || this.status.running || this.active) throw new Error('请先暂停并等待当前轮停止');
     const state = createGame(config);
+    if(this.planningPool){await this.planningPool.close();this.planningPool=undefined;}
+    this.planningOptions=planning;
     if (workers !== this.pool.size) {
       const replacement = new SimulationPool(workers);
       await this.pool.close(); this.pool = replacement;
@@ -173,8 +179,22 @@ export class MatchRunner {
     this.emit();
     let decisions: Record<FactionId, Decision>;
     if (base.config.controller === 'scripted') {
-      for (const factionId of activeIds) await this.audit('script.input', observation(base, factionId,null,undefined,this.scriptAuditProjection), factionId);
-      decisions = factionRecord(activeIds, id => this.scriptController(base, id));
+      decisions = {};
+      try {
+        if(base.config.scriptStrategy==='adaptive-v2'&&this.scriptController===scriptedDecision) {
+          if(!this.planningPool||this.planningPool.closed)this.planningPool=new PlanningPool(base.config.factionIds.length,this.planningOptions);
+          decisions=await this.planningPool.decide(base,abort.signal,async(actor,input)=>{await this.audit('script.input',input,actor);});
+          await this.audit('script.performance',this.planningPool.metrics);
+        } else for (const factionId of activeIds) {
+          if(base.config.scriptStrategy==='adaptive-v1'&&base.rulesRevision==='5.4'&&this.scriptController===scriptedDecision) {
+            decisions[factionId]=await adaptiveDecision(base,factionId,abort.signal,{inputAudit:async input=>{await this.audit('script.input',input,factionId);}});
+          } else {
+            await this.audit('script.input',observation(base,factionId,null,undefined,this.scriptAuditProjection),factionId);
+            decisions[factionId]=await this.scriptController(base,factionId);
+          }
+          if(abort.signal.aborted){this.status.phase='paused';return;}
+        }
+      } catch(error) { if(abort.signal.reason==='user_pause'){this.status.phase='paused';return;} throw error; }
       for (const factionId of activeIds) {
         this.status.ai[factionId] = { status: '命令已提交', requests: 0, actions: decisions[factionId].actions.length };
         this.status.metrics[factionId].durationMs += decisions[factionId].metrics.durationMs;
@@ -219,14 +239,17 @@ export class MatchRunner {
     });
     if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
     for (const factionId of activeIds) next.factions[factionId].strategies = [...next.factions[factionId].strategies, { round: next.round, text: decisions[factionId].summary }].slice(-5);
+    commitScriptMemory(next,decisions);
     const checkpoint = { version: next.version, state: next, lastDecisions: decisions, metrics: this.status.metrics };
     const hash = stateHash(next);
     const prepared = await this.audit('round.prepared', { hash, actions: Object.fromEntries(Object.entries(decisions).map(([id, decision]) => [id, decision.actions])) }, undefined, next.day);
     if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
+    const saveStarted=performance.now();
     await this.store.commit({ round: next.round, decisions, hash, state: next, attemptId: this.attemptId, auditHash: prepared.hash, metrics: structuredClone(this.status.metrics) }, checkpoint, () => { this.state = next; this.lastDecisions = decisions; this.attemptId = undefined; });
+    if(next.config.scriptStrategy==='adaptive-v2')await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
     this.emit();
     await new Promise<void>(resolve => setImmediate(resolve));
   }
 
-  async close() { this.pause(); await this.waitIdle(); try { await this.save(); } finally { await this.pool.close(); } }
+  async close() { this.pause(); await this.waitIdle(); try { await this.save(); } finally { await this.planningPool?.close();await this.pool.close(); } }
 }

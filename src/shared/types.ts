@@ -79,6 +79,7 @@ export interface Intel {
 }
 export interface MilitaryIntel { day: number; source: 'local' | 'lrs'; ownerId: string | null; controllerId?: string | null; base: Starbase | null; fleets: Fleet[] }
 export interface Faction {
+  scriptMemory?: import('./adaptive.js').ScriptMemory;
   extraction?: import('./emergency.js').Extraction;
   governance?: import('./governance.js').GovernanceSample[];
   annexationProgress?: { systems: string[]; wars: Record<string, { granted: number; remaining: number }> };
@@ -113,6 +114,7 @@ export interface MatchConfig {
   maxRounds: number;
   models: Record<FactionId, string>;
   controller: 'model' | 'scripted';
+  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2';
 }
 export interface GameEvent {
   details?: unknown;
@@ -190,6 +192,8 @@ export interface DecisionMetrics {
   unknownUsageRequests?: number;
 }
 export interface Decision {
+  scriptMemory?: import('./adaptive.js').ScriptMemory;
+  scriptReport?: import('./adaptive.js').ScriptReport;
   actions: Action[];
   summary: string;
   trace: ToolTrace[];
@@ -214,5 +218,6 @@ export interface LiveStatus {
   ai: Record<FactionId, { status: string; requests: number; actions: number }>;
   metrics: Record<FactionId, DecisionMetrics>;
   workers: WorkerMetric[];
+  planning?: {planningWorkers:number;forecastWorkers:number;durationMs:number;queueMs:number;peakRssMb:number};
 }
 export interface LiveSnapshot { state: GameState; status: LiveStatus; lastDecisions: Record<FactionId, Decision> | null }

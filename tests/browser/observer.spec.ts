@@ -18,6 +18,7 @@ test('观察界面可创建比赛、查看星系、推进整局和复盘', async
   await page.screenshot({ path: '.data/verification/observer-system.png', fullPage: true });
   await page.getByRole('button', { name: '＋ 新比赛' }).click();
   await page.getByLabel('控制方式').selectOption('scripted');
+  await page.getByLabel('脚本策略').selectOption('legacy');
   await page.getByLabel('最大轮数').fill('6');
   await page.getByLabel('地图种子').fill('browser-verification');
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();

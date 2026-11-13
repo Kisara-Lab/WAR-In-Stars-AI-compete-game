@@ -3,6 +3,7 @@ import { MatchStore } from '../src/server/storage.js';
 import { readProviderConfig } from '../src/server/provider.js';
 import { SimulationPool } from '../src/sim/pool.js';
 import { advanceRound } from '../src/sim/engine.js';
+import { commitScriptMemory } from '../src/sim/adaptive-adapter.js';
 import { stateHash } from '../src/sim/math.js';
 
 const option = (name: string, fallback: string) => process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : fallback;
@@ -21,6 +22,7 @@ try {
     const record = await store.record(id, round);
     replay = await advanceRound(replay, pool, Object.fromEntries(Object.entries(record.decisions).map(([factionId, decision]) => [factionId, decision.actions])));
     for (const [factionId, decision] of Object.entries(record.decisions)) replay.factions[factionId].strategies = [...replay.factions[factionId].strategies, { round, text: decision.summary }].slice(-5);
+    commitScriptMemory(replay,record.decisions);
     if (stateHash(replay) !== record.hash) {
       const differences: string[] = [];
       const compare = (actual: unknown, expected: unknown, path: string) => {

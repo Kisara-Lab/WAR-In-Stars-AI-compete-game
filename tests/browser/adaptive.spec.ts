@@ -1,0 +1,30 @@
+import {expect,test} from '@playwright/test';
+import {DEFAULT_CONFIG} from '../../src/shared/rules.js';
+import {mkdir} from 'node:fs/promises';
+
+test('智能脚本版本、目标、比较、受限视角及导出',async({page})=>{
+  test.setTimeout(60000);
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.request.post('/api/matches',{data:{...DEFAULT_CONFIG,controller:'scripted',scriptStrategy:'adaptive-v1',maxRounds:3}});
+  await page.goto('/');
+  await expect(page.locator('.control-mode')).toContainText('adaptive-v1');
+  await page.getByRole('button',{name:'＋ 新比赛'}).click();
+  await expect(page.getByLabel('脚本策略')).toHaveValue('adaptive-v2');
+  await page.getByLabel('脚本策略').selectOption('legacy');
+  await expect(page.getByLabel('脚本策略')).toHaveValue('legacy');
+  await page.getByRole('button',{name:'取消',exact:true}).click();
+  await page.getByRole('button',{name:'▷ 单轮推进'}).click();
+  await expect(page.locator('.match-clock strong')).toHaveText('001',{timeout:30000});
+  const panel=page.getByRole('region',{name:'智能脚本规划'});
+  await expect(panel).toContainText('模型请求与 token 为 0');
+  await panel.locator('details').first().locator('summary').click();
+  await expect(panel).toContainText('前三个未选方案');await expect(panel).toContainText('工具接受');
+  await page.getByLabel('观察势力').selectOption('aurora');
+  await expect(panel.locator('details')).toHaveCount(1);
+  await mkdir('.data/verification/adaptive-v1',{recursive:true});
+  await page.screenshot({path:'.data/verification/adaptive-v1/browser.png',fullPage:true});
+  const snapshot=await (await page.request.get('/api/state')).json();
+  const exported=await page.request.get(`/api/matches/${snapshot.state.id}/export/markdown`);
+  expect(exported.ok()).toBe(true);expect(await exported.text()).toContain('adaptive-v1');
+  expect(snapshot.status.metrics.aurora.requests).toBe(0);expect(errors).toEqual([]);
+});

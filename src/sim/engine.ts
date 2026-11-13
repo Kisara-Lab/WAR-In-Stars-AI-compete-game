@@ -30,7 +30,7 @@ import { accessiblePath, DIPLOMATIC_ACTIONS, diplomacyEvent, markContactWars, up
 import { factionScores } from '../shared/scoring.js';
 
 export function appendEvents(state: GameState, events: LocalEvent[]) {
-  const ordered = [...events].sort((first, second) => (first.systemId ?? '').localeCompare(second.systemId ?? '') || first.type.localeCompare(second.type) || first.text.localeCompare(second.text));
+  const ordered = [...events].sort((first, second) => (first.systemId ?? '').localeCompare(second.systemId ?? '') || first.type.localeCompare(second.type) || first.text.localeCompare(second.text, 'en'));
   let sequence = Math.max(state.events.filter(event => event.day === state.day).length, ...state.events.filter(event => event.day === state.day && /^\d+-\d+$/.test(event.id)).map(event => Number(event.id.split('-')[1]) + 1));
   for (const event of ordered) state.events.push({ ...event, round: state.round + 1, id: `${state.day}-${sequence++}` });
 }

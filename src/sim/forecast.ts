@@ -15,7 +15,7 @@ import { updatePolicies } from './policies.js';
 import { applyAction } from './actions.js';
 
 /** Economic projection: no combat, movement, new orders or foreign assets. Always a private draft. */
-export function economicForecast(original: GameState, actor: string) {
+export function economicForecast(original: GameState, actor: string, horizons: readonly number[] = [720,1440]) {
   const state = previewDraft(original);
   state.config.factionIds = [actor];
   state.factions = { [actor]: state.factions[actor] };
@@ -24,9 +24,9 @@ export function economicForecast(original: GameState, actor: string) {
   state.relations = Object.fromEntries(Object.entries(state.relations).filter(([,r])=>r.factions.includes(actor)));
   state.events=[];
   // Public rights remain frozen; foreign populations, ships, economic state and decisions are absent.
-  const start = state.day, result: unknown[] = [], completedProjects: {id:string;day:number;kind:string}[]=[];
+  const start = state.day, result: {days:number;resources:Record<string,number>;unity:number;population:number;remainingProjects:{id:string;kind:string;progressDays:number}[];shortageDays:number;unpaidDays:number;policy?:string}[] = [], completedProjects: {id:string;day:number;kind:string}[]=[];
   let shortageDays=0, unpaidDays=0;
-  for (let step=0;step<144;step++) {
+  for (let step=0;step<Math.ceil(Math.max(0,...horizons)/10);step++) {
     const beforeProjects=state.systems.flatMap(s=>s.projects);
     freezeOperations(state);
     const controlled=Object.fromEntries(state.systems.map(s=>[s.id,controller(s)]));
@@ -50,7 +50,7 @@ export function economicForecast(original: GameState, actor: string) {
     unpaidDays+=modern(state)&&faction.welfare?.last?.fraction!==1?10:0;
     // Crisis is deliberately held fixed, not a forecast of future warfare or doctrine events.
     if(faction.faith) faction.faith.pending=[];
-    if(step===71||step===143) result.push({days:state.day-start,resources:Object.fromEntries(Object.entries(faction.resources).map(([k,v])=>[k,v/1000])),unity:faction.unity/100,population:state.systems.flatMap(s=>s.planets).filter(p=>p.ownerId===actor).reduce((n,p)=>n+p.population,0),remainingProjects:state.systems.flatMap(s=>s.projects).map(p=>({id:p.id,kind:p.kind,progressDays:p.progress/1000})),shortageDays,unpaidDays,policy:faction.policy?.choice});
+    if(horizons.some(days=>Math.ceil(days/10)==step+1)) result.push({days:state.day-start,resources:Object.fromEntries(Object.entries(faction.resources).map(([k,v])=>[k,v/1000])),unity:faction.unity/100,population:state.systems.flatMap(s=>s.planets).filter(p=>p.ownerId===actor).reduce((n,p)=>n+p.population,0),remainingProjects:state.systems.flatMap(s=>s.projects).map(p=>({id:p.id,kind:p.kind,progressDays:p.progress/1000})),shortageDays,unpaidDays,policy:faction.policy?.choice});
     state.events=[];
   }
   return {...(responsible(original)?{responsibilityAssumption:'未来责任压力与外国履约固定为当前状态；不假设战争成果或提案成功，援助出资方不假设未知余额返还'}:{}),assumptions:'只推进本国已知已付款项目、人口、经济及已提交政策；控制权、战争负担、信仰危机与对外关系冻结。无新订单、无未知敌军、无战争胜利假设；供应、队列及未来战争可能改变结果。航道舰船保持航道维护。', completedProjects, horizons:result};

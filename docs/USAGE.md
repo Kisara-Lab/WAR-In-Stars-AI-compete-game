@@ -10,9 +10,11 @@ npm run build
 npm start
 ```
 
-Open `http://127.0.0.1:8787`, choose **＋ 新比赛 → 控制方式 → 脚本演示**, then start or step the match. The scripted controller requires no API key. Startup does not automatically run a match.
+Open `http://127.0.0.1:8787`, choose **＋ 新比赛 → 控制方式 → 纯脚本对战（不调用模型）**, then select **智能脚本对战 adaptive-v2** and start or step the match. The scripted controller requires no API key. Startup does not automatically run a match. `legacy` and `adaptive-v1` remain available; restoring a save preserves its strategy.
 
 默认新局是模型控制；无密钥时请创建脚本演示局。开发模式 `npm run dev` 提供5173前端和8787后端。服务只绑定本机地址，公开托管前请阅读 [安全说明](../SECURITY.md)。
+
+V2创建示例见 [config.adaptive-v2.example.json](../config.adaptive-v2.example.json)。省略 `planningWorkers` 和 `forecastWorkers` 时按本机CPU自动配置；两者设为0使用参考模式。手动配置须满足每国规划最多8、规划与预测合计最多16及本机保留2个逻辑处理器的预算。模拟线程 `workers` 独立配置；这些运行参数不写入世界哈希。策略、性能实测与局限见 [V2说明](../ADAPTIVE-V2.md) 和 [完整报告](../TESTING-ADAPTIVE-V2.md)。
 
 ## 模型接口
 

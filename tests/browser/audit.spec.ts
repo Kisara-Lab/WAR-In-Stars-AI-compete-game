@@ -7,6 +7,7 @@ test('审计筛选、决策详情、编年史导出和四方八方政策面板',
   await page.goto('/');
   await page.getByRole('button', { name: '＋ 新比赛' }).click();
   await page.getByLabel('控制方式').selectOption('scripted');
+  await page.getByLabel('脚本策略').selectOption('legacy');
   await page.getByLabel('AI 势力数量').selectOption('4');
   await page.getByLabel('最大轮数').fill('8');
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();

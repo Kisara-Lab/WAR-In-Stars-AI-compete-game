@@ -56,6 +56,42 @@ There were **21 wars: nine missionary wars and twelve claim wars**. Every factio
 
 [Read the selected campaign report, usage and methodology →](docs/case-studies/120-rounds.en.md)
 
+## Adaptive scripts V2: opponents without API costs
+
+New pure-script matches default to **`adaptive-v2`**. `adaptive-v1` and `legacy` remain available; restoring a save preserves its strategy, and old saves without a strategy field keep legacy behavior. Rules remain **5.4**, with **48 actual actions** per faction per turn. Model requests and tokens are always zero in script matches.
+
+- **Value construction and operation together:** jobs, supply, sealing and restarting share the same conditions. LRS value reflects additional two-hop coverage and intelligence needs. The UI names ground/orbital facilities, reserved slots, staffing and stoppage reasons.
+- **Compare strategic alternatives:** civilization routes share cost and conditional-benefit comparisons. Welfare savings are not credited as militarist institutional benefits. Conquest preparation can precede fleet readiness; declarations still require fresh intelligence, the 1.3x attack threshold, legal access and home defense.
+- **Bounded, auditable planning:** all planets enter initial screening; at most 256 candidates and 24 detailed forecasts are evaluated. Workers receive faction-visible knowledge. Every faction must succeed before joint submission; unrelated inventory changes no longer unlock failed construction retries.
+- **Separate planning, forecasting and simulation:** persistent planning workers handle factions, forecast workers handle independent economic alternatives under the same draft prefix, and simulation workers calculate local world updates. More simulation workers alone do not accelerate planning.
+
+### CPU, memory and measured performance
+
+Automatic planning uses no more than eight workers or the faction count. Forecast workers use the remaining budget. Together they are capped at 16, reserving at least two logical processors for the coordinator and system; small hosts can fall back to no planning workers. Runtime parameters `planningWorkers` and `forecastWorkers` do not affect world hashes; both zero selects the reference mode. `WORKERS` separately controls simulation workers. These phases are not continuously busy at the same time.
+
+Incremental drafts, per-turn static caches and smaller forecast inputs reduce repeated work and copying. Each faction has at most 64 draft cache entries and 24 detailed forecasts; changing the prefix invalidates dependent results. Audits expose generation, copying, static evaluation, forecasting, validation, queue and save times, with memory and cache metrics.
+
+Three fixed mid/late-game snapshots on an **AMD Ryzen AI MAX+ 395, 32 logical processors, approximately 64GB RAM** produced:
+
+| Mode | Median planning | Sample p95 | Average busy cores | Observed peak RSS |
+|---|---:|---:|---:|---:|
+| V1 | 21.52s | 49.57s | 1.06 | 1533MB |
+| V2 without workers | 22.16s | 30.39s | 1.07 | 622MB |
+| V2 parallel | **5.40s** | **6.58s** | **7.43** | 2799MB |
+
+The V2 median fell **75.6%**, with identical actions, memory and summaries across all three snapshots and unchanged search budgets. Measurements include cold starts; p95 has only three samples. RSS was measured sequentially in one process and includes retained runtime memory, so it is not an isolated algorithm memory comparison. These results are not a speed guarantee for every machine or a reason to maximize CPU utilization artificially.
+
+### Two complete observations and remaining limits
+
+| Scenario | Final routes | Total wars | Winner | Match time |
+|---|---|---:|---|---:|
+| Four factions, 24 systems, `stars-2026` | One of each route | 6 | Umbra Council | 711s |
+| Eight factions, 48 systems, `adaptive-frontier` | Four militarist, two religious, two secular | 18 | Verdant Federation | 1001s |
+
+No civilization or war quotas were assigned. Effective LRS counts ended at 7/24 and 30/47; staffing gaps, shortages, poor governance and invalid orders remain. The four-faction winner covered 23 systems with three effective LRS, so building count alone is not coverage. Two subsequent fixes cover late expansion completion checks and inventory incorrectly unlocking construction retries; they received targeted and fixed-snapshot verification, without additional full matches. These observations do not prove long-term balance.
+
+[Strategy and configuration (Chinese)](ADAPTIVE-V2.md) · [Performance and observation report (Chinese)](TESTING-ADAPTIVE-V2.md) · [V2 match example](config.adaptive-v2.example.json)
+
 ## Quick start
 
 Install **Node.js 24 or newer**, npm, and a modern desktop browser.
@@ -75,7 +111,7 @@ Open **http://127.0.0.1:8787**.
 The game UI is currently in Chinese. These labels will get you into a free scripted match:
 
 1. Click **「＋ 新比赛」** (New match).
-2. Set **「控制方式」** (Controller) to **「脚本演示」** (Scripted demo).
+2. Set **「控制方式」** (Controller) to **「纯脚本对战（不调用模型）」** (Pure scripts), then select **「智能脚本对战 adaptive-v2」** as the strategy; the legacy baseline remains available.
 3. Choose four to eight factions, a seed and a round limit, then create the match.
 4. Use **「单轮推进」** (Step one round) or **「开始比赛」** (Start).
 

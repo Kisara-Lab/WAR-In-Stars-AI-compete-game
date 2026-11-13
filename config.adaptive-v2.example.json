@@ -1,0 +1,10 @@
+{
+  "seed": "stars-2026",
+  "factionIds": ["aurora", "umbra", "verdant", "cobalt"],
+  "systemCount": 24,
+  "maxRounds": 120,
+  "models": {"aurora": "scripted", "umbra": "scripted", "verdant": "scripted", "cobalt": "scripted"},
+  "controller": "scripted",
+  "scriptStrategy": "adaptive-v2",
+  "workers": 2
+}

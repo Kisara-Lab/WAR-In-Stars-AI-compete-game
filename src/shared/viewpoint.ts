@@ -25,6 +25,7 @@ export function viewpoint(original: GameState, viewer: string): GameState {
   for (const intel of Object.values(faction.transitIntel ?? {})) if (!fleets.has(intel.fleet.id)) fleets.set(intel.fleet.id, sanitizeFleet(structuredClone(intel.fleet)));
   state.fleets = [...fleets.values()];
   for (const other of Object.values(state.factions)) if (other.id !== viewer) {
+    delete other.scriptMemory;
     const extraction=other.extraction;
     other.extraction=extraction?.known[viewer]!==undefined ? {...extraction,ships:{},initialCrisis:0,initialUnity:0,totalGrant:{energy:0,minerals:0,food:0},last:undefined,known:{[viewer]:extraction.known[viewer]},demands:extraction.demands.filter(d=>d.actor===viewer),responses:{},qualifiedDays:0} : undefined;
     other.resources = { energy: 0, food: 0, minerals: 0 }; other.lastIncome = { energy: 0, food: 0, minerals: 0 }; other.unity = 0;

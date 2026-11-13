@@ -39,17 +39,24 @@ export function industryComparison(state: GameState, actor: string, planetId?: s
   }));
 }
 
-export function constructionOptions(state: GameState, actor: string, planetId: string) {
+export function constructionContext(state:GameState,actor:string) {
+  const compact={...state,events:[],factions:Object.fromEntries(Object.entries(state.factions).map(([id,faction])=>[id,{...faction,intel:{},militaryIntel:{},transitIntel:{},strategies:[],scriptMemory:undefined}]))};
+  const pipeline=completedPipeline(compact,actor);
+  const before=policyComparison(pipeline,actor,[state.factions[actor].policy?.choice??'none'])[0];
+  return {compact,pipeline,before};
+}
+
+export function constructionOptions(state: GameState, actor: string, planetId: string, context?:ReturnType<typeof constructionContext>) {
   const system = state.systems.find(s => s.planets.some(p => p.id === planetId));
   const planet = system?.planets.find(p => p.id === planetId);
   if (!industrial(state) || !planet || planet.ownerId !== actor || system?.ownerId !== actor) return [];
   const policy = state.factions[actor].policy?.choice ?? 'none';
-  const pipeline = completedPipeline(state,actor);
-  const before = policyComparison(pipeline, actor, [policy])[0];
+  const pipeline = context?.pipeline??completedPipeline(state,actor);
+  const before = context?.before??policyComparison(pipeline, actor, [policy])[0];
   const beforeJobs = industryPlanet(pipeline.systems.find(s=>s.id===system.id)!.planets.find(p=>p.id===planetId)!, state.day);
   const result = [{ type: 'wait' as string, effect: '不增加设施与维护，保留劳动力和库存，允许等待已付款产能完成', allowed: true, reason: null as string | null, jobs: 0, displaced: [] as string[], net: { energy: 0, food: 0, minerals: 0, alloys: 0 }, unity: 0, mineralCost: 0, alloyCost: 0, paybackDays: null as number | null, alloyThroughputPer100: 0, supportedFacilities: [] as string[], operation: 0, estimate: '静态每100日；全国已有排队建筑先视为完成，不计队列期间收益。paybackDays仅为净矿物节省回收建材的估算，不是综合价值或排名；加工、民生、造舰须比较具体用途，null不表示无价值。未来人口/供应/战争可改变结果。' }];
   for (const type of Object.keys(STRUCTURES) as StructureType[]) {
-    const validation = previewDraft(state);
+    const validation = previewDraft(context?.compact??state);
     try {
       applyAction(validation, actor, { type: 'build_structure', args: { planetId, structureType: type } }, 'preview');
       // Both alternatives include the same queued assets across the whole nation.

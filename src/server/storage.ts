@@ -224,6 +224,10 @@ export class MatchStore {
         const source = logs.find(log => log.attemptId === turn.attemptId && log.factionId === factionId && log.category === 'decision.completed');
         const rejected = decision.trace.filter(trace => !trace.ok || trace.disposition === 'rolled_back');
         if (rejected.length) lines.push(`本次决策存在 ${rejected.length} 条拒绝或回滚记录，均非执行事实；以最终接受命令及世界事件为准。`, '');
+        if(decision.scriptReport) {
+          const report=decision.scriptReport;
+          lines.push(`智能策略 ${report.version}：候选 ${report.candidates}/256，详细预测 ${report.forecasts}/24，整批校验 ${report.validations}/3，模型请求及token为0。`, '',report.assumptions,'',...report.alternatives.map(item=>`- 备选 ${item.label}：估值 ${item.value.toFixed(2)}，风险 ${item.risk.toFixed(2)}；${item.reason}；情报日 ${item.evidenceDays.join('、')}`),'');
+        }
         lines.push(`### ${turn.state.factions[factionId].name}的公开战略（${source ? `审计 #${source.seq}` : '逐轮存档'}）`, '', ...decision.summary.split('\n').map(line => `> ${line}`), '', `意图：${decision.actions.map(action => action.type).join('、') || '无命令'}。最终执行情况见本轮命令事件。`, '');
       }
       const events = logs.length ? logs.filter(log => log.attemptId === turn.attemptId && log.category.startsWith('event.')).map(log => ({ event: log.data as GameState['events'][number], source: `审计 #${log.seq}` })) : turn.state.events.filter(event => !seen.has(event.id)).map(event => ({ event, source: '旧快照' }));

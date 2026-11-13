@@ -46,7 +46,7 @@ export function shortestPath(systems: GameState['systems'], from: string, to: st
 export function stateHash(state: GameState): string {
   const canonical = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(canonical);
-    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([first], [second]) => first.localeCompare(second)).map(([key, entry]) => [key, canonical(entry)]));
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([first], [second]) => first.localeCompare(second, 'en')).map(([key, entry]) => [key, canonical(entry)]));
     return value;
   };
   return createHash('sha256').update(JSON.stringify(state.version >= 4 ? canonical(state) : state)).digest('hex');

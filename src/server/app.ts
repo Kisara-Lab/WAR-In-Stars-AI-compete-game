@@ -1,4 +1,6 @@
 import { V54 } from '../shared/emergency.js';
+import { ADAPTIVE, ADAPTIVE_V2 } from '../shared/adaptive.js';
+import { planningConfig } from '../sim/planning-pool.js';
 import { V53, actionLimit, outputLimit } from '../shared/governance.js';
 import { RESPONSIBILITY } from '../shared/responsibility.js';
 import { decisionComparison } from '../sim/options.js';
@@ -26,6 +28,9 @@ const matchSchema = z.strictObject({
   maxRounds: z.number().int().min(1).max(1000),
   models: z.record(z.string(), modelName),
   controller: z.enum(['model', 'scripted']),
+  scriptStrategy: z.enum(['legacy','adaptive-v1','adaptive-v2']).optional(),
+  planningWorkers:z.number().int().min(0).max(8).optional(),
+  forecastWorkers:z.number().int().min(0).max(16).optional(),
   workers: z.number().int().min(1).max(maxWorkers()).optional(),
 });
 
@@ -46,6 +51,7 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
   app.use(express.json({ limit: '32kb' }));
   app.get('/api/health', (_request, response) => { response.json({ ok: true, workers: runner.pool.size, maxWorkers: maxWorkers() }); });
   app.get('/api/state', (_request, response) => { response.json(runner.snapshot()); });
+  app.get('/api/script-strategy', (_request,response)=>{response.json({default:'adaptive-v2',versions:{'adaptive-v1':ADAPTIVE,'adaptive-v2':ADAPTIVE_V2}});});
   app.get('/api/rules', (_request, response) => { response.json({ civilization: {...CIVILIZATION, revision: V54.revision}, welfare: welfareRules({rulesRevision:V54.revision}), decisionBalance: DECISION_BALANCE, responsibilities: RESPONSIBILITY, modernPolicies: V5_POLICIES, industry: INDUSTRY, effects: BUILDING_EFFECTS, labor: LABOR, expansions: EXPANSIONS, emergency: V54, governance: V53, defaults: DEFAULT_CONFIG, rules: {...RULES,maxActions:actionLimit({rulesRevision:V54.revision}),maxOutputTokens:outputLimit({rulesRevision:V54.revision})}, v4: V4, escalation: ESCALATION, warTypes: WAR_NAMES, structures: STRUCTURES, policies: POLICIES, ships: SHIPS, base: BASE }); });
   app.get('/api/provider', async (_request, response) => {
     try {
@@ -55,9 +61,12 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
     } catch { response.json({ configured: false, protocol: 'responses', models: ['grok-4.7'], error: '请在项目目录的 AIKEY.env 中配置 base 和 key' }); }
   });
   app.post('/api/matches', async (request, response) => {
-    const { workers, ...config } = matchSchema.parse(request.body);
+    const { workers, planningWorkers, forecastWorkers, ...config } = matchSchema.parse(request.body);
+    if(config.controller==='scripted'&&config.scriptStrategy===undefined)config.scriptStrategy='adaptive-v2';
+    if(config.scriptStrategy?.startsWith('adaptive-')&&config.controller!=='scripted')throw new Error('智能脚本仅支持纯脚本比赛');
+    const planning=planningConfig(config.factionIds.length,{planningWorkers,forecastWorkers});
     if (config.factionIds.some(id => !config.models[id]) || Object.keys(config.models).some(id => !config.factionIds.includes(id))) throw new Error('模型配置必须与势力清单一致');
-    await runner.create(config, workers); response.json(runner.snapshot());
+    await runner.create(config, workers,planning); response.json(runner.snapshot());
   });
   app.post('/api/start', (_request, response) => { runner.start(); response.json({ ok: true }); });
   app.post('/api/step', (_request, response) => { runner.start(true); response.json({ ok: true }); });

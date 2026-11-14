@@ -56,9 +56,26 @@ There were **21 wars: nine missionary wars and twelve claim wars**. Every factio
 
 [Read the selected campaign report, usage and methodology →](docs/case-studies/120-rounds.en.md)
 
-## Adaptive scripts V2: opponents without API costs
+## Adaptive scripts V3: combinations and sustained management
 
-New pure-script matches default to **`adaptive-v2`**. `adaptive-v1` and `legacy` remain available; restoring a save preserves its strategy, and old saves without a strategy field keep legacy behavior. Rules remain **5.4**, with **48 actual actions** per faction per turn. Model requests and tokens are always zero in script matches.
+New pure-script matches default to **`adaptive-v3`, standard profile**. V3 preserves rules 5.4, the 48-action limit and faction-visible intelligence. Model requests and tokens remain zero. Legacy, V1, V2 and old-save behavior remain available; existing matches are not upgraded automatically.
+
+| Search profile | Candidates | Beam width | Combination depth | Draft evaluations | Detailed forecasts |
+|---|---:|---:|---:|---:|---:|
+| Standard | 256 | 4 | 3 | 256 | 48 |
+| Deep | 512 | 8 | 4 | 1024 | 128 |
+
+V3 re-evaluates each action prefix, retaining competing combinations and waiting. Forecasts include unmet welfare, low cohesion, governance Q and adjusted social assets. LRS value depends on coverage after actual operation begins; campaign memory influences targets, staging and resource tradeoffs. The definite forecast assumes no new military success; successful responsibility outcomes are separate conditional scenarios.
+
+**Powerful machines can explicitly select the deep profile.** The automatic compute budget is `min(64, logical processors−2)`, with at most eight coordination workers and the remainder processing candidates, previews and forecasts. `computeWorkers=0` selects the serial reference. The default cache ceiling is the smaller of **8192 MiB** and 25% of available memory, allocated on demand. Cache size is not an RSS limit. Thread and cache settings do not affect world hashes; the search profile affects decisions and is saved and hashed.
+
+Metrics distinguish planning, previews, forecasts, queuing, CPU, RSS, caching and coordinator responsiveness. A 10–20-second mid/late round in deep mode is an optimization target. Fixed-snapshot performance and the two alternating-seat matches are reported separately; neither CPU saturation nor a required winner defines success.
+
+[V3 strategy and hardware configuration (Chinese)](ADAPTIVE-V3.md) · [V3 match example](config.adaptive-v3.example.json)
+
+## Adaptive scripts V2: retained baseline and historical measurements
+
+**`adaptive-v2`** remains selectable alongside `adaptive-v1` and `legacy`. Restoring a save preserves its strategy; old saves without a strategy field keep legacy behavior. The following describes the published V2 implementation and historical measurements. Rules remain **5.4**, with **48 actual actions** per faction per turn and zero model requests or tokens.
 
 - **Value construction and operation together:** jobs, supply, sealing and restarting share the same conditions. LRS value reflects additional two-hop coverage and intelligence needs. The UI names ground/orbital facilities, reserved slots, staffing and stoppage reasons.
 - **Compare strategic alternatives:** civilization routes share cost and conditional-benefit comparisons. Welfare savings are not credited as militarist institutional benefits. Conquest preparation can precede fleet readiness; declarations still require fresh intelligence, the 1.3x attack threshold, legal access and home defense.

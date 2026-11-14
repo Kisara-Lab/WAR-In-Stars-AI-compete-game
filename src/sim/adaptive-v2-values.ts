@@ -19,7 +19,7 @@ export function sensorCoverage(state:GameState,actor:string,systemId:string) {
     const system=state.systems.find(system=>system.id===id)!;
     const day=own.militaryIntel?.[id]?.day??own.intel[id]?.day??null;
     const foreign=!!system.ownerId&&system.ownerId!==actor;
-    const task=own.scriptMemory?.tasks.some(task=>task.target===id)??false;
+    const task=(own.scriptMemory?.tasks.some(task=>task.target===id)??false)||(own.scriptMemory?.version==='adaptive-v3'&&own.scriptMemory.campaign?.target===id);
     const value=controller(system)===actor?0:CONFIG.sensorSystemValue+(day===null||state.day-day>CONFIG.intelDays?CONFIG.sensorStaleValue:0)+(foreign?CONFIG.sensorThreatValue:0)+(task?CONFIG.sensorTaskValue:0);
     return {systemId:id,day,value};
   });

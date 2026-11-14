@@ -34,7 +34,7 @@ export class MatchRunner {
   private abort: AbortController | null = null;
   private active: Promise<void> | null = null;
   private planningPool?:PlanningPool;
-  private planningOptions:PlanningConfig={planningWorkers:process.env.PLANNING_WORKERS===undefined?undefined:Number(process.env.PLANNING_WORKERS),forecastWorkers:process.env.FORECAST_WORKERS===undefined?undefined:Number(process.env.FORECAST_WORKERS)};
+  private planningOptions:PlanningConfig={planningWorkers:process.env.PLANNING_WORKERS===undefined?undefined:Number(process.env.PLANNING_WORKERS),forecastWorkers:process.env.FORECAST_WORKERS===undefined?undefined:Number(process.env.FORECAST_WORKERS),computeWorkers:process.env.COMPUTE_WORKERS===undefined?undefined:Number(process.env.COMPUTE_WORKERS),planningCacheMiB:process.env.PLANNING_CACHE_MIB===undefined?undefined:Number(process.env.PLANNING_CACHE_MIB)};
   private listeners = new Set<() => void>();
 
   constructor(state: GameState, public pool: SimulationPool, readonly store: MatchStore, private providerFactory: () => Promise<ModelProvider>, private scriptController: (state:GameState,actor:string)=>Decision|Promise<Decision> = scriptedDecision, private scriptAuditProjection = true) {
@@ -93,6 +93,8 @@ export class MatchRunner {
   async load(id: string, round?: number, rulesRevision?: '4.2' | '4.3' | '5.0' | '5.1' | '5.2' | '5.3' | '5.4') {
     if (this.status.busy || this.status.running || this.active) throw new Error('请先暂停并等待当前轮停止');
     const checkpoint = await this.store.load(id, round);
+    if(this.planningPool){await this.planningPool.close();this.planningPool=undefined;}
+    this.planningOptions={computeWorkers:this.planningOptions.computeWorkers,planningCacheMiB:this.planningOptions.planningCacheMiB};
     if(rulesRevision && Number(rulesRevision) < Number(checkpoint.state.rulesRevision ?? '4.0')) throw new Error('不能将较新规则存档降级；请选相同或更新修订创建分支');
     let restored = checkpoint.state.version >= 4 || !rulesRevision ? structuredClone(checkpoint.state) : migrateState(checkpoint.state);
     if (rulesRevision === '4.2') restored = migrateBalance(restored);
@@ -181,8 +183,8 @@ export class MatchRunner {
     if (base.config.controller === 'scripted') {
       decisions = {};
       try {
-        if(base.config.scriptStrategy==='adaptive-v2'&&this.scriptController===scriptedDecision) {
-          if(!this.planningPool||this.planningPool.closed)this.planningPool=new PlanningPool(base.config.factionIds.length,this.planningOptions);
+        if(['adaptive-v2','adaptive-v3'].includes(base.config.scriptStrategy??'')&&this.scriptController===scriptedDecision) {
+          if(!this.planningPool||this.planningPool.closed)this.planningPool=new PlanningPool(base.config.factionIds.length,{...this.planningOptions,v3:base.config.scriptStrategy==='adaptive-v3'});
           decisions=await this.planningPool.decide(base,abort.signal,async(actor,input)=>{await this.audit('script.input',input,actor);});
           await this.audit('script.performance',this.planningPool.metrics);
         } else for (const factionId of activeIds) {
@@ -246,7 +248,7 @@ export class MatchRunner {
     if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
     const saveStarted=performance.now();
     await this.store.commit({ round: next.round, decisions, hash, state: next, attemptId: this.attemptId, auditHash: prepared.hash, metrics: structuredClone(this.status.metrics) }, checkpoint, () => { this.state = next; this.lastDecisions = decisions; this.attemptId = undefined; });
-    if(next.config.scriptStrategy==='adaptive-v2')await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
+    if(['adaptive-v2','adaptive-v3'].includes(next.config.scriptStrategy??''))await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
     this.emit();
     await new Promise<void>(resolve => setImmediate(resolve));
   }

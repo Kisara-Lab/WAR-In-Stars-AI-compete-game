@@ -9,6 +9,7 @@ export interface ScriptCandidate {
   evidenceDays: number[]; progress: string; deadline: number;
   economic: boolean; exclusive: string[]; fingerprint: string;
   tasks: ScriptMemory['tasks'];
+  successDay?:number;
 }
 export interface ScriptObservation {
   actor: string; round: number; day: number; remainingDays: number; actionLimit: number;

@@ -24,10 +24,10 @@ import { failureConditions } from './adaptive-v2-failures.js';
 
 export const actionKey=(action:Action)=>action.type+':'+String(action.args.systemId??action.args.planetId??action.args.fleetId??action.args.factionId??action.args.projectId??action.args.proposalId??'national');
 
-export function candidateFacts(world:GameState,actor:string,v2=false) {
+export function candidateFacts(world:GameState,actor:string,v2=false,limit:number=ADAPTIVE.candidates,v3=false) {
   const own=world.factions[actor], facts=observation(world,actor,null,false);
   const comparison=decisionComparison(world,actor,false), purpose=resourcePurposes(world,actor);
-  const routes=v2?routeComparison(world,actor,comparison):[];
+  const routes=v2?routeComparison(world,actor,comparison).map(option=>v3?{...option,value:option.economy+option.social+option.capability-option.failure-ADAPTIVE_V2.commitmentOptionCost}:option):[];
   const functions=v2?functionalValue(world,actor):null;
   const buildingContext=v2?constructionContext(world,actor):undefined;
   const remaining=(world.config.maxRounds-world.round)*RULES.daysPerRound;
@@ -126,6 +126,7 @@ export function candidateFacts(world:GameState,actor:string,v2=false) {
         if(claim)add({type:'create_claim',args:{systemId:system.id}},score*.5,'claim',{exclusive:['claim:'+system.id],label:'建立可兑现宣称 '+system.id,evidenceDays:[date!]});
         if(comparisonWar.preparation.allowed)add({type:'prepare_conquest',args:{factionId:target,reason:'比较所有已知对手后准备可达目标'}},score*.4,'prepare',{exclusive:['conquest'],label:'准备征服 '+target});
       }
+      if(v3&&candidates.at(-1)?.kind==='war')candidates.at(-1)!.successDay=Math.ceil((world.day+travel+((war?.type??declaration?.warType)==='total'?720:200))/10)*10;
     }
   }
   for(const system of ownSystems) {
@@ -177,7 +178,7 @@ export function candidateFacts(world:GameState,actor:string,v2=false) {
     add(actions,option.value,'civilization',{exclusive:['civilization','welfare'],label:'比较永久路线 '+option.choice,reason:JSON.stringify(option)});
   }
   if(own.faith)for(const site of own.faith.sites.filter(site=>site.consecratedDay===undefined))add({type:'consecrate',args:{planetId:site.planetId}},ADAPTIVE.dutyValue,'faith',{label:'祝圣固定圣地 '+site.planetId});
-  for(const system of world.systems.sort((first,second)=>first.id.localeCompare(second.id))) {
+  for(const system of (v3?[...world.systems]:world.systems).sort((first,second)=>first.id.localeCompare(second.id))) {
     const adjacent=system.neighbors.some(id=>ownSystems.some(owned=>owned.id===id));
     if(!adjacent&&!ownSystems.some(owned=>owned.id===system.id))continue;
     if(!own.surveyed.includes(system.id)&&remaining>RULES.surveyDays)add({type:'survey_system',args:{systemId:system.id}},ADAPTIVE.explorationValue,'explore',{label:'探索 '+system.id});
@@ -257,7 +258,7 @@ export function candidateFacts(world:GameState,actor:string,v2=false) {
     for(const kind of [...new Set(ranked.map(candidate=>candidate.kind))].sort()) {
       const best=ranked.find(candidate=>candidate.kind===kind)!;selected.push(best);
     }
-    for(const candidate of ranked)if(selected.length<ADAPTIVE.candidates&&!selected.includes(candidate))selected.push(candidate);
+    for(const candidate of ranked)if(selected.length<limit&&!selected.includes(candidate))selected.push(candidate);
   }
-  return {facts:{...facts,comparison,resourcePurposes:purpose,construction:ownSystems.flatMap(system=>system.planets.filter(planet=>planet.ownerId===actor).map(planet=>({planetId:planet.id,...constructionView(world,system,planet)})))},...(v2?{comparisons:{routes,sensors:functions,wars:comparison.wars}}:{}),candidates:(v2?selected:candidates).sort((first,second)=>first.id.localeCompare(second.id)),generated,truncated:generated>ADAPTIVE.candidates};
+  return {facts:{...facts,comparison,resourcePurposes:purpose,construction:ownSystems.flatMap(system=>system.planets.filter(planet=>planet.ownerId===actor).map(planet=>({planetId:planet.id,...constructionView(world,system,planet)})))},...(v2?{comparisons:{routes,sensors:functions,wars:comparison.wars}}:{}),candidates:(v2?selected:candidates).sort((first,second)=>first.id.localeCompare(second.id)),generated,truncated:generated>limit};
 }

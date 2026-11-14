@@ -4,7 +4,7 @@ import { previewDraft } from './preview.js';
 import { modern, welfareRules, civilizationEligibility, welfareQuote } from '../shared/civilization.js';
 import { policyComparison } from '../shared/comparison.js';
 import { religionEligibility } from '../shared/religion-options.js';
-import { freezeOperations } from '../shared/industry.js';
+import { freezeOperations, support } from '../shared/industry.js';
 import type { GameState } from '../shared/types.js';
 import { controller } from '../shared/v4.js';
 import { economyFactors, mergePhase, settleEconomy } from './engine.js';
@@ -13,9 +13,17 @@ import { trackCivilization } from './civilization.js';
 import { finishBalanceInterval } from './balance.js';
 import { updatePolicies } from './policies.js';
 import { applyAction } from './actions.js';
+import { governanceView, recordGovernance } from '../shared/governance.js';
+import { forecastResponsibility, type ForecastScenario } from './forecast-v3.js';
+import { SHIPS } from '../shared/rules.js';
+import { ESCALATION } from '../shared/escalation.js';
+import { scoreBreakdown } from '../shared/scoring.js';
+import { updateFaith } from './religion.js';
+
+export interface GovernanceProjection { minimumUnity:number; lowUnityDays:number; quality:number; adjustedSocial:number; crisis:number; dissatisfaction:number; responsibilityPenalty:number; fleetScore:number; score:number; sensors:string[] }
 
 /** Economic projection: no combat, movement, new orders or foreign assets. Always a private draft. */
-export function economicForecast(original: GameState, actor: string, horizons: readonly number[] = [720,1440]) {
+export function economicForecast(original: GameState, actor: string, horizons: readonly number[] = [720,1440], scenario?: ForecastScenario) {
   const state = previewDraft(original);
   state.config.factionIds = [actor];
   state.factions = { [actor]: state.factions[actor] };
@@ -24,8 +32,10 @@ export function economicForecast(original: GameState, actor: string, horizons: r
   state.relations = Object.fromEntries(Object.entries(state.relations).filter(([,r])=>r.factions.includes(actor)));
   state.events=[];
   // Public rights remain frozen; foreign populations, ships, economic state and decisions are absent.
-  const start = state.day, result: {days:number;resources:Record<string,number>;unity:number;population:number;remainingProjects:{id:string;kind:string;progressDays:number}[];shortageDays:number;unpaidDays:number;policy?:string}[] = [], completedProjects: {id:string;day:number;kind:string}[]=[];
+  const start = state.day, result: {days:number;resources:Record<string,number>;unity:number;population:number;remainingProjects:{id:string;kind:string;progressDays:number}[];shortageDays:number;unpaidDays:number;policy?:string;governance?:GovernanceProjection}[] = [], completedProjects: {id:string;day:number;kind:string}[]=[];
   let shortageDays=0, unpaidDays=0;
+  let minimumUnity=state.factions[actor].unity/100,lowUnityDays=0;
+  const trajectory:{day:number;unity:number;quality:number;welfare:number}[]=[];
   for (let step=0;step<Math.ceil(Math.max(0,...horizons)/10);step++) {
     const beforeProjects=state.systems.flatMap(s=>s.projects);
     freezeOperations(state);
@@ -39,21 +49,28 @@ export function economicForecast(original: GameState, actor: string, horizons: r
       mergePhase(state,phase,[output]);
       if(phase==='economy') settleEconomy(state,[output],factors,false);
     }
+    if(scenario)forecastResponsibility(state,actor,scenario);
     if(modern(state)) trackCivilization(state,{[actor]:factors[actor].unity});
+    if(scenario)updateFaith(state,true);
     applyExtractionRecovery(state);
+    if(scenario)recordGovernance(state);
     finishBalanceInterval(state,factors,controlled);
     updatePolicies(state);
     const remaining=new Set(state.systems.flatMap(s=>s.projects).map(p=>p.id));
     for(const p of beforeProjects) if(!remaining.has(p.id)) completedProjects.push({id:p.id,kind:p.kind,day:state.day});
     const faction=state.factions[actor];
+    minimumUnity=Math.min(minimumUnity,faction.unity/100);
+    lowUnityDays+=faction.unity<6000?10:0;
+    if(scenario)trajectory.push({day:state.day,unity:faction.unity/100,quality:governanceView(state,actor).quality,welfare:faction.welfare?.last?.fraction??1});
     shortageDays+=Object.values(faction.shortages).some(Boolean)?10:0;
     unpaidDays+=modern(state)&&faction.welfare?.last?.fraction!==1?10:0;
     // Crisis is deliberately held fixed, not a forecast of future warfare or doctrine events.
     if(faction.faith) faction.faith.pending=[];
     if(horizons.some(days=>Math.ceil(days/10)==step+1)) result.push({days:state.day-start,resources:Object.fromEntries(Object.entries(faction.resources).map(([k,v])=>[k,v/1000])),unity:faction.unity/100,population:state.systems.flatMap(s=>s.planets).filter(p=>p.ownerId===actor).reduce((n,p)=>n+p.population,0),remainingProjects:state.systems.flatMap(s=>s.projects).map(p=>({id:p.id,kind:p.kind,progressDays:p.progress/1000})),shortageDays,unpaidDays,policy:faction.policy?.choice});
+    if(scenario&&result.at(-1)?.days===state.day-start)result.at(-1)!.governance={minimumUnity,lowUnityDays,quality:governanceView(state,actor).quality,adjustedSocial:governanceView(state,actor).adjustedSocial,crisis:faction.faith?.crisis??0,dissatisfaction:faction.responsibility?.dissatisfaction??0,responsibilityPenalty:faction.responsibility?.rescuePenalty??0,fleetScore:state.fleets.filter(fleet=>fleet.ownerId===actor).flatMap(fleet=>fleet.ships).reduce((sum,ship)=>sum+SHIPS[ship.type].power*ESCALATION.fleetScoreFactor,0),score:scoreBreakdown(state,actor).total,sensors:state.systems.filter(system=>controller(system)===actor&&!faction.shortages.energy&&!faction.shortages.minerals&&system.planets.some(planet=>planet.ownerId===actor&&support(planet,'lrs',state.day)===1)).map(system=>system.id)};
     state.events=[];
   }
-  return {...(responsible(original)?{responsibilityAssumption:'未来责任压力与外国履约固定为当前状态；不假设战争成果或提案成功，援助出资方不假设未知余额返还'}:{}),assumptions:'只推进本国已知已付款项目、人口、经济及已提交政策；控制权、战争负担、信仰危机与对外关系冻结。无新订单、无未知敌军、无战争胜利假设；供应、队列及未来战争可能改变结果。航道舰船保持航道维护。', completedProjects, horizons:result};
+  return {...(scenario?{trajectory,scenario}:{}),...(responsible(original)?{responsibilityAssumption:scenario?'当前可见合法路径固定；逐步推进责任压力、已知短缺和恢复；成功日仅为明确标记的条件情景':'未来责任压力与外国履约固定为当前状态；不假设战争成果或提案成功，援助出资方不假设未知余额返还'}:{}),assumptions:scenario?'推进本国已付款项目、经济、人口、凝聚力和治理；控制权、外国行为及可见责任路径固定，不推断未知敌方资产或战争胜利。':'只推进本国已知已付款项目、人口、经济及已提交政策；控制权、战争负担、信仰危机与对外关系冻结。无新订单、无未知敌军、无战争胜利假设；供应、队列及未来战争可能改变结果。航道舰船保持航道维护。', completedProjects, horizons:result};
 }
 
 export function pathwayForecasts(state:GameState,actor:string) {

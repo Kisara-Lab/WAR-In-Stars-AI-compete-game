@@ -16,6 +16,7 @@ import { economicForecast } from './forecast.js';
 import { constructionOptions } from './industry.js';
 import { adaptiveResourceWeights } from './adaptive-economics.js';
 import { support } from '../shared/industry.js';
+import { v3FailureDependency } from './adaptive-v3-failures.js';
 
 export function freezeInput<T>(value:T):Immutable<T> {
   if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freezeInput(child);}
@@ -153,10 +154,13 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
       return {...task,role:fleet.systemId===task.target&&!fleet.order?'hold':task.role};
     });
     for(const event of state.events.filter(event=>event.round===state.round&&event.type==='order'&&event.audience.includes(actor))) {
-      const details=event.details as {factionId?:string;accepted?:boolean;action?:Action}|undefined;
+      const details=event.details as {factionId?:string;accepted?:boolean;action?:Action;reason?:string}|undefined;
       if(details?.factionId!==actor||details.accepted!==false||!details.action)continue;
       const selected=decision.scriptReport?.selected.find(item=>item.actions.some(action=>JSON.stringify(action)===JSON.stringify(details.action)));
-      if(selected)memory.failures.push({key:selected.id,fingerprint:selected.fingerprint,round:state.round,reason:'共同结算未执行；等待对应本方事实或情报更新'});
+      if(selected) {
+        const reason=memory.version==='adaptive-v3'?/资源|不足|费用|余额/.test(details.reason??'')?'资源条件未满足':/通行|闭境|边境|路径/.test(details.reason??'')?'路径通行条件未满足':/舰队|fleet/i.test(details.reason??'')?'舰队状态未满足':'共同结算归属或施工条件未满足':'共同结算未执行；等待对应本方事实或情报更新';
+        memory.failures.push({key:selected.id,fingerprint:memory.version==='adaptive-v3'?v3FailureDependency(scriptKnowledge(state,actor),actor,selected.actions,reason):selected.fingerprint,round:state.round,reason});
+      }
     }
     memory.failures=memory.failures.slice(-64);
     state.factions[actor].scriptMemory=memory;

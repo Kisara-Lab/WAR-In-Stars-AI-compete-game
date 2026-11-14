@@ -439,7 +439,7 @@ export class StagingArea {
   ended = false;
   private calls = 0;
 
-  constructor(state: GameState, readonly factionId: FactionId) { this.draft = structuredClone(state); }
+  constructor(state: GameState, readonly factionId: FactionId, clone = true) { this.draft = clone ? structuredClone(state) : state; }
 
   execute(name: string, args: Record<string, unknown>): { ok: boolean; result?: unknown; error?: string; subIndex?: number } {
     if (BULK_TOOLS.includes(name)) {

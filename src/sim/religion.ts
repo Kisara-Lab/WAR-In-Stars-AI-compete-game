@@ -83,7 +83,7 @@ function updateInfluence(state: GameState) {
   for (const mission of state.missions ?? []) if (mission.expiresDay === state.day) v4Event(state, 'religion', '传教权到期，地方影响开始自然消退', [mission.religionId, mission.hostId], mission, mission.systemId);
 }
 
-export function updateFaith(state: GameState) {
+export function updateFaith(state: GameState, frozenControl = false) {
   updateInfluence(state);
   const portion = RULES.tickDays / 100;
   for (const actor of factionIds(state)) {
@@ -92,7 +92,7 @@ export function updateFaith(state: GameState) {
     if (!faith || faction.eliminatedDay !== undefined) continue;
     for (const site of faith.sites.filter(site => site.consecratedDay !== undefined)) {
       const system = state.systems.find(system => system.planets.some(planet => planet.id === site.planetId))!;
-      observeHolyControl(state, system);
+      if(!frozenControl)observeHolyControl(state, system);
       if (site.lostSince !== undefined && site.lostSince < state.day) faith.pending.push({ reason: '圣地持续失守', amount: (site.main ? V4.mainPressure : V4.secondaryPressure) * portion, source: site.planetId });
     }
     const main = faith.sites.find(site => site.main);
@@ -124,7 +124,8 @@ export function updateFaith(state: GameState) {
     if (response && response.effectUntil > state.day - RULES.tickDays && response.type !== 'zeal') faith.pending.push({ reason: response.type === 'reform' ? '教义改革' : '调和教派', amount: -(response.type === 'reform' ? V4.reformRecovery : V4.reconciliationRecovery) * portion });
     const vow = response?.vow;
     if (vow && !vow.resolved) {
-      const fulfilled = vow.planetId ? controller(state.systems.find(system => system.planets.some(planet => planet.id === vow.planetId))!) === actor : state.wars?.find(war => war.id === vow.warId)?.goals[actor].some(goal => goal.systemId === vow.systemId && goal.achieved);
+      const vowSystem=vow.planetId?state.systems.find(system=>system.planets.some(planet=>planet.id===vow.planetId)):undefined;
+      const fulfilled = vow.planetId ? (frozenControl&&!vowSystem?false:controller(vowSystem!)===actor) : state.wars?.find(war => war.id === vow.warId)?.goals[actor].some(goal => goal.systemId === vow.systemId && goal.achieved);
       if (fulfilled || state.day >= vow.deadline) {
         vow.resolved = true;
         faith.pending.push({ reason: fulfilled ? '圣战承诺兑现' : '圣战承诺失败', amount: fulfilled ? -V4.vowSuccess : V4.vowFailure });

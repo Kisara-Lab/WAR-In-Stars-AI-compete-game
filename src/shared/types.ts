@@ -114,7 +114,8 @@ export interface MatchConfig {
   maxRounds: number;
   models: Record<FactionId, string>;
   controller: 'model' | 'scripted';
-  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2';
+  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3';
+  scriptSearchProfile?: 'standard' | 'deep';
 }
 export interface GameEvent {
   details?: unknown;

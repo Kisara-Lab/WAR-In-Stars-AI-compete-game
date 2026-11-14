@@ -9,7 +9,7 @@ test('智能脚本版本、目标、比较、受限视角及导出',async({page}
   await page.goto('/');
   await expect(page.locator('.control-mode')).toContainText('adaptive-v1');
   await page.getByRole('button',{name:'＋ 新比赛'}).click();
-  await expect(page.getByLabel('脚本策略')).toHaveValue('adaptive-v2');
+  await expect(page.getByLabel('脚本策略')).toHaveValue('adaptive-v4.12');
   await page.getByLabel('脚本策略').selectOption('legacy');
   await expect(page.getByLabel('脚本策略')).toHaveValue('legacy');
   await page.getByRole('button',{name:'取消',exact:true}).click();

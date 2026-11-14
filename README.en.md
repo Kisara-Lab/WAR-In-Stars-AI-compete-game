@@ -1,5 +1,43 @@
 <div align="center">
 
+## AI vs intelligent scripts
+
+Choose **AI VS 智能脚本** in the new-match form and assign each faction to a model or a script. The default alternates two model seats and two script seats. Script seats share a strategy and search profile: `adaptive-v4.12` standard by default, with deep and older strategies available. Model seats choose their models independently.
+
+- Use the [mixed configuration example](config.mixed.example.json) as a `POST /api/matches` body. Only model seats appear in `models`.
+- Creation leaves the match stopped. Start or step it explicitly to make decisions. Only model seats use API quota, with at most three requests per faction per round; script seats use zero model requests and tokens.
+- Both controllers plan concurrently from the same round boundary with the same 48-action limit under rules 5.4. Any failure or user pause discards all uncommitted actions and script memory. Incurred model usage remains recorded; scripts never silently replace failed models.
+- Search profiles affect strategy; worker and cache settings affect execution speed. Planning workers receive only script-seat tasks. Restoring a save preserves its seats, strategy and profile.
+- Existing pure-model and pure-script saves retain their behavior. Mechanism tests use mocked models and isolated short scenarios. A separate, user-authorized V4.1 match uses real paid model calls; see the [observation report](TESTING-ADAPTIVE-V4.1.md) for progress and usage. This mode makes no claim that either controller is stronger.
+
+
+## V4.1 planning repair
+
+[Strategy notes](ADAPTIVE-V4.1.md): accepted prefixes carry certificates; final repairs remove causal groups and preserve independent orders. Resource-specific recovery, declared war goals and campaign milestones apply only to the new strategy. Worker/cache settings affect speed, while standard/deep search limits remain unchanged. See the [validation report](TESTING-ADAPTIVE-V4.1.md); more actions alone do not demonstrate stronger play.
+
+## V4.12: continuous strategy and reinforcements
+
+Starting with `national-capacity-5`, military evaluations belong to individual drafts, and a shared demand ledger tracks prewar needs and reinforcement arrival. Defense is compared with keeping original orders under the same scenarios; baselines consume the existing budget. A fixed V4.1 comparison pauses at round 60 and requires one V4.12 seat to finish strictly first, with at most three independently frozen revisions. [Acceptance record](TESTING-V412-NATIONAL-CAPACITY.md). This local comparison does not establish win rates against models.
+
+`national-capacity-6` pairs military actions with original-order baselines and requires an executable responsibility path within the grace period before adopting militarism or theocracy. Stale intelligence permits safe assembly at home, but does not authorize an attack. Fleets, bases, and timely paid orders share an allocation ledger. Assembly stalls and reinforcements arriving piecemeal remain observed limitations; see the acceptance record for actual losses. Script-only comparisons load no API credentials and make zero model calls.
+
+Fixed round-60 acceptance: revision 5 failed; revision 6 passed on the second attempt. Umbra V4.12 finished strictly first at 6185.407 and Cobalt V4.12 second at 4994.370. The match is saved and paused, with no round 61. No third attempt was started.
+
+Local revision `colonial-defense-4` excludes unrelated claim settlement and governance lookback changes from defensive returns. Each known incoming fleet maps to one defensive objective, and unfilled defense requirements remain available for shipbuilding. [Repair and 40-round observation](TESTING-V412-COLONIAL-DEFENSE-4.md).
+
+[Strategy notes](ADAPTIVE-V4.12.md) · [Verification and observation](TESTING-ADAPTIVE-V4.12.md)
+
+[Latest colonial repair and segmented observation through round 40](TESTING-V412-COLONIAL-EXECUTION-3.md): a round-30 preview error paused the match; revision 3.1 continued from a separate branch. Production and colonization improved; campaign defense remains incomplete.
+
+Local revision `colonial-execution-3.1` removes hypothetical development returns from waiting branches, lets productive investment compete with reserved capital, and explicitly compares staffed production-plus-colony packages. Search budgets and risk validation remain unchanged. The [previous 40-round comparison](TESTING-V41-V412-40.md) found V4.12 substantially behind; this revision uses a separate 40-round pure-script comparison with no model calls. Previous model and script archives remain intact. Results do not establish general win rates or superiority over models.
+
+- National plans retain objectives, resource reservations, ship identities, next steps and exit conditions. A fixed assault roster is separate from later support; occupied objectives remain eligible for defense and settlement.
+- Supply deficits, welfare funding, blocked delivery and institutional duties have separate diagnostics. Occupation does not automatically prohibit ships needed for recovery.
+- Candidates deferred by a phase budget can return in residual planning. Independent investments can pass conservative accounting after detailed forecasts run out, followed by a final forecast. Selected, submitted and removed groups are recorded separately.
+- Standard keeps 256 candidates, 256 draft evaluations, 48 economic forecasts and 12 military options; deep keeps 512/1024/128/32. Each military option compares three deterministic responses, not calibrated win probabilities.
+- `computeWorkers` and `planningCacheMiB` reuse the existing pools and caches. They do not change search budgets or world hashes, and there is no wall-clock search cutoff. Deep explicitly buys more search. This iteration records match timings without claiming a new speedup factor.
+- Old saves retain their strategy; new matches start paused. Scripts use no model quota; only model seats incur API costs. Historical counterfactuals and the single live model match are reported separately; one outcome cannot establish general superiority.
+
 # WAR IN STARS
 
 ### Give AI a galaxy. Watch civilizations choose their future.
@@ -56,9 +94,40 @@ There were **21 wars: nine missionary wars and twelve claim wars**. Every factio
 
 [Read the selected campaign report, usage and methodology →](docs/case-studies/120-rounds.en.md)
 
-## Adaptive scripts V2: opponents without API costs
+## Adaptive scripts V4: crisis recovery and campaign execution
 
-New pure-script matches default to **`adaptive-v2`**. `adaptive-v1` and `legacy` remain available; restoring a save preserves its strategy, and old saves without a strategy field keep legacy behavior. Rules remain **5.4**, with **48 actual actions** per faction per turn. Model requests and tokens are always zero in script matches.
+Opening revision `crisis-campaign-opening-2` fixes omitted survey value, premature rejection of 500-day colonies, stale rejection caches blocking later investments, and patrols heading into unknown system centers. Unordered ships no longer count as realized fleet value. A 16-round isolated opening check verifies actual expansion; long-term strength remains under live observation.
+
+New script and mixed matches default to **V4 standard**, retaining rules 5.4 and 48 actions. V4 compares operating-facility shutdowns with job changes, deficit severity and recovery forecasts. Military value includes simulated losses, visible enemy score losses and realizable objectives; preparations receive no fixed reward. Concentrated forces gather before a coordinated advance, expired tasks release ships, and unrelated shipbuilding does not reset campaign progress.
+
+Standard evaluates at most 12 military plans and deep 32, each under three deterministic scenarios. These are not calibrated win probabilities. Existing persistent planning workers and caches are reused; this change does not enlarge the pool. Hardware affects speed; selecting deep explicitly increases search. Unknown enemy forces and foreign scores remain unknown. No superiority over models is claimed. See the [V4 strategy notes](ADAPTIVE-V4.md).
+
+## Adaptive scripts V3: combinations and sustained management (retained)
+
+You can still select **`adaptive-v3`** explicitly. V3 preserves rules 5.4, the 48-action limit and faction-visible intelligence. Model requests and tokens remain zero. Legacy, V1, V2 and old-save behavior remain available; existing matches are not upgraded automatically.
+
+| Search profile | Candidates | Beam width | Combination depth | Draft evaluations | Detailed forecasts |
+|---|---:|---:|---:|---:|---:|
+| Standard | 256 | 4 | 3 | 256 | 48 |
+| Deep | 512 | 8 | 4 | 1024 | 128 |
+
+V3 re-evaluates each action prefix, retaining competing combinations and waiting. Forecasts include unmet welfare, low cohesion, governance Q and adjusted social assets. LRS value depends on coverage after actual operation begins; campaign memory influences targets, staging and resource tradeoffs. The definite forecast assumes no new military success; successful responsibility outcomes are separate conditional scenarios.
+
+The local `whole-turn-1` repair separates combination search from remaining management actions. Forecast exhaustion no longer ends the entire turn; existing search budgets and the 48-action limit stay intact. Welfare increases check every forecast window, facility values share one model, and defense considers approaching known fleets and prepaid ships that can arrive in time. The UI explains why planning stopped and which opportunities remain. Validation uses focused checks and one complete four-faction match, with no new performance benchmarks; see the [repair observation report (Chinese)](TESTING-ADAPTIVE-V3-REPAIR.md). Performance figures below describe the earlier implementation.
+
+The single repaired match completed 120 rounds: V3 Verdant won with 11785 points, averaging 6.62 actions and no empty turns; 426 actions came from the remaining-management phase. The other V3 faction, Aurora, was eliminated. Median planning time was 26.62 seconds, p95 75.26 seconds. Planning remains slow, critical forecast allocation and recovery from territorial loss remain incomplete, and this match does not establish general superiority over V2. Nothing was published or deployed.
+
+**Powerful machines can explicitly select the deep profile.** The automatic compute budget is `min(64, logical processors−2)`, with at most eight coordination workers and the remainder processing candidates, previews and forecasts. `computeWorkers=0` selects the serial reference. The default cache ceiling is the smaller of **8192 MiB** and 25% of available memory, allocated on demand. Cache size is not an RSS limit. Thread and cache settings do not affect world hashes; the search profile affects decisions and is saved and hashed.
+
+Metrics distinguish planning, previews, forecasts, queuing, CPU, RSS, caching and coordinator responsiveness. Across three fixed snapshots on 32 logical processors and roughly 64GB RAM, warm median times are **14.81 seconds** for standard and **39.60 seconds** for deep, versus 76.15/245.04 seconds in the corresponding serial modes, with identical action and memory hashes. Deep mode **misses the 10–20-second target**: the eight-faction round-100 snapshot takes 98.79 seconds with a maximum sampled RSS of about 8.6GiB. Prefix candidate recomputation, previews and message copies remain bottlenecks; speed does not scale linearly with thread count.
+
+[V3 strategy and hardware configuration (Chinese)](ADAPTIVE-V3.md) · [V3 performance and observation report (Chinese)](TESTING-ADAPTIVE-V3.md) · [V3 match example](config.adaptive-v3.example.json)
+
+**This is an unpublished local implementation.** Both fixed V3-deep/V2 matches completed 120 rounds and were won by V2. Early welfare risk, slow investment and weak campaign execution remain; the evidence does not establish a stronger strategy or recommend replacing stable V2. The report lists remaining gaps. Existing real matches and the service on 8787 were not advanced.
+
+## Adaptive scripts V2: retained baseline and historical measurements
+
+**`adaptive-v2`** remains selectable alongside `adaptive-v1` and `legacy`. Restoring a save preserves its strategy; old saves without a strategy field keep legacy behavior. The following describes the published V2 implementation and historical measurements. Rules remain **5.4**, with **48 actual actions** per faction per turn and zero model requests or tokens.
 
 - **Value construction and operation together:** jobs, supply, sealing and restarting share the same conditions. LRS value reflects additional two-hop coverage and intelligence needs. The UI names ground/orbital facilities, reserved slots, staffing and stoppage reasons.
 - **Compare strategic alternatives:** civilization routes share cost and conditional-benefit comparisons. Welfare savings are not credited as militarist institutional benefits. Conquest preparation can precede fleet readiness; declarations still require fresh intelligence, the 1.3x attack threshold, legal access and home defense.

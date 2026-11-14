@@ -1,4 +1,5 @@
 import { V54, emergencyRules } from '../shared/emergency.js';
+import { controllerLabel } from '../shared/controllers.js';
 import { governed, governanceView, V53 } from '../shared/governance.js';
 import { RESPONSIBILITY, responsible } from '../shared/responsibility.js';
 import { INDUSTRY, industrial, BUILDING_EFFECTS, LABOR, EXPANSIONS } from '../shared/industry.js';
@@ -51,6 +52,9 @@ export interface MatchMeta {
   day: number;
   controller: string;
   models: Record<FactionId, string>;
+  factionControllers?: Record<FactionId, 'model' | 'scripted'>;
+  scriptStrategy?: string;
+  scriptSearchProfile?: 'standard' | 'deep';
   updatedAt: string;
   result: GameState['result'];
 }
@@ -113,6 +117,7 @@ export class MatchStore {
     }
     await this.write(join(directory, 'checkpoint.json'), { ...checkpoint, hash: stateHash(state) });
     const meta: MatchMeta = { id: state.id, seed: state.config.seed, round: state.round, firstRound: initialRound, day: state.day, controller: state.config.controller, models: state.config.models, updatedAt: new Date().toISOString(), result: state.result };
+    if (state.config.controller === 'mixed') Object.assign(meta, { factionControllers: state.config.factionControllers, scriptStrategy: state.config.scriptStrategy, scriptSearchProfile: state.config.scriptSearchProfile });
     await this.write(join(directory, 'meta.json'), meta);
     if (this.sessionFile) await this.write(this.sessionFile, { id: state.id });
   }
@@ -216,7 +221,7 @@ export class MatchStore {
     const committed = new Set(turns.map(turn => turn.attemptId));
     const lines = [`# WAR In Stars 编年史`, '', `比赛：${id}；种子：${initial.state.config.seed}；规则版本：${initial.state.version} / 修订 ${initial.state.rulesRevision ?? '原版'}`, '', logs.length ? '记录范围：本分支开局至最近提交回合。模型公开说明为当时意图，游戏事件为结算事实。序号对应 audit.jsonl。' : '记录范围：旧版逐轮快照。原始模型请求、失败尝试与被截断事件缺失，无法补还。', ''];
     if (initial.state.lineage) lines.push(`历史来源：${initial.state.lineage.matchId}，第${initial.state.lineage.round}轮，状态哈希 ${initial.state.lineage.hash}`, '');
-    lines.push('## 开局', '', ...Object.values(initial.state.factions).map(faction => `- ${faction.name}（${faction.id}），模型 ${initial.state.config.models[faction.id]}，母星 ${faction.homeSystemId}`), '', `初始状态哈希：${stateHash(initial.state)}`, '');
+    lines.push('## 开局', '', ...Object.values(initial.state.factions).map(faction => `- ${faction.name}（${faction.id}），${controllerLabel(initial.state.config, faction.id)}，母星 ${faction.homeSystemId}`), '', `初始状态哈希：${stateHash(initial.state)}`, '');
     const seen = new Set<string>();
     for (const turn of turns) {
       lines.push(`## 第${Math.floor(turn.state.day / RULES.daysPerYear) + 1}年 · 第${turn.round}轮 · 第${turn.state.day}日`, '', `状态哈希：${turn.hash}；决策尝试：${turn.attemptId ?? '旧档未记录'}`, '');

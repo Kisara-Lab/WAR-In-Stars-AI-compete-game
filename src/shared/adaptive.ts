@@ -19,25 +19,35 @@ export interface ScriptGoal {
   prerequisites: string[]; deadline: number; progress: string; lastProgressRound: number;
 }
 export interface ScriptMemory {
-  version: 'adaptive-v1' | 'adaptive-v2'; goal: ScriptGoal | null;
-  tasks: { fleetId: string; role: 'defend' | 'assemble' | 'attack' | 'hold' | 'withdraw'; target: string }[];
+  v412?: import('./adaptive-v412.js').MemoryV412;
+  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12'; goal: ScriptGoal | null;
+  tasks: { fleetId: string; role: 'defend' | 'assemble' | 'attack' | 'hold' | 'withdraw'; target: string; warId?:string; expiresDay?:number; campaignId?:string }[];
   failures: { key: string; fingerprint: string; round: number; reason: string }[];
+  campaign?: { opponent:string; target:string; stage:string; reserve:Record<string,number>; progress:string; lastProgressRound:number; blockers:string[]; nextStep?:string; expectedDay?:number; completion?:string; value?:number; committed?:boolean; paidPower?:number };
+  recovery?: {deadline:number;lastCheckedDay:number;shortages:Record<string,boolean>;welfareFraction:number;normalNet:Record<string,number>};
+  operation?: import('./adaptive-v4.js').CampaignV4;
 }
 export interface ScriptAlternative {
   id: string; label: string; priority: number; value: number; risk: number;
   reason: string; evidenceDays: number[]; selected: boolean;
 }
 export interface ScriptReport {
-  version: 'adaptive-v1' | 'adaptive-v2'; candidates: number; forecasts: number; validations: number;
+  v412?: import('./adaptive-v412.js').ReportV412;
+  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12'; candidates: number; forecasts: number; validations: number;
+  v4?: import('./adaptive-v4.js').ReportV4;
+  v41?: import('./adaptive-v41.js').ReportV41;
   performance?: Record<string, number>;
+  selectedProjection?:string;
+  search?: { profile:'standard'|'deep'; evaluations:number; depth:number; combinations:{ids:string[];risk:number;criticalThreats?:number;economic:number;functional:number;conditional:number}[] };
   comparisons?: {routes: unknown; sensors: unknown; wars: unknown};
   exhausted: boolean; alternatives: ScriptAlternative[];
+  turn?: { revision:string; actions:number; planets:number; stop:string; stages:Record<string,{evaluations:number;forecasts:number;actions:number}>; opportunities:{id:string;label:string;reason:string;value:number}[]; value:{score:number;economy:number;functional:number;conditional:number;governanceCost:number}; welfareSafe:boolean; threats:unknown[] };
   selected: { id: string; label: string; actions: Action[]; fingerprint: string }[];
   rejected: { attempt: number; index: number; reason: string }[];
   assumptions: string;
-  projections?: {id:string;horizons:{days:number;resources:Record<string,number>;unity:number;population:number;shortageDays:number;unpaidDays:number}[]}[];
+  projections?: {id:string;horizons:{days:number;resources:Record<string,number>;unity:number;population:number;shortageDays:number;unpaidDays:number}[];trajectory?:{day:number;unity:number;quality:number;welfare:number}[]}[];
 }
-export const scriptName = (config: {controller: string; scriptStrategy?: string}) => config.controller !== 'scripted'
+export const scriptName = (config: {controller: string; scriptStrategy?: string}) => config.controller === 'mixed' ? 'AI VS 智能脚本' : config.controller !== 'scripted'
   ? 'AI 模型对战' : config.scriptStrategy?.startsWith('adaptive-') ? '智能脚本 '+config.scriptStrategy : '旧脚本基线';
 
 export const ADAPTIVE_V2 = {
@@ -48,4 +58,15 @@ export const ADAPTIVE_V2 = {
   forecastBatch: 4, stageDiscount: .6, responsibilityHorizon: 1440,
   housingPersonValue: 5, currentFleetServiceValue: .025,
   commitmentOptionCost: 100, unityRiskPerPoint: 10,
+} as const;
+
+export const ADAPTIVE_V3 = {
+  version: 'adaptive-v3', repair: 'whole-turn-1', threadBudget: 64, cacheMiB: 8192,
+  residualShare: .25, combinationForecastShare: .5, residualBatch: 8,
+  operatingHorizon: 720, investmentValue: .12, surplusValue: .003,
+  unityDayCost: .05, unityDeclineCost: .5, conditionalWeight: .25,
+  profiles: {
+    standard: { candidates: 256, width: 4, depth: 3, evaluations: 256, forecasts: 48 },
+    deep: { candidates: 512, width: 8, depth: 4, evaluations: 1024, forecasts: 128 },
+  },
 } as const;

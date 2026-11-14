@@ -113,8 +113,12 @@ export interface MatchConfig {
   systemCount: number;
   maxRounds: number;
   models: Record<FactionId, string>;
-  controller: 'model' | 'scripted';
-  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2';
+  controller: 'model' | 'scripted' | 'mixed';
+  factionControllers?: Record<FactionId, 'model' | 'scripted'>;
+  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12';
+  /** Explicit, persisted roster for pure-script comparison matches. */
+  scriptStrategies?: Record<FactionId, 'adaptive-v4.1' | 'adaptive-v4.12'>;
+  scriptSearchProfile?: 'standard' | 'deep';
 }
 export interface GameEvent {
   details?: unknown;

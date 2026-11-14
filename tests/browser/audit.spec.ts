@@ -8,7 +8,7 @@ test('审计筛选、决策详情、编年史导出和四方八方政策面板',
   await page.getByRole('button', { name: '＋ 新比赛' }).click();
   await page.getByLabel('控制方式').selectOption('scripted');
   await page.getByLabel('脚本策略').selectOption('legacy');
-  await page.getByLabel('AI 势力数量').selectOption('4');
+  await page.getByLabel('势力数量').selectOption('4');
   await page.getByLabel('最大轮数').fill('8');
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();
   await page.getByRole('button', { name: '▷ 单轮推进' }).click();
@@ -19,11 +19,13 @@ test('审计筛选、决策详情、编年史导出和四方八方政策面板',
   const panel = page.getByRole('region', { name: '完整审计日志' });
   await expect(panel).toContainText('完整审计');
   await page.getByLabel('审计类别').selectOption('decision');
-  await expect(page.locator('.audit-record')).toHaveCount(4);
-  await page.locator('.audit-record summary').first().click();
-  await expect(page.locator('.audit-record pre').first()).toContainText('choose_policy');
+  await expect(page.locator('.audit-record')).toHaveCount(8);
+  const completed = page.locator('.audit-record').filter({ hasText: 'decision.completed' });
+  await expect(completed).toHaveCount(4);
+  await completed.first().locator('summary').click();
+  await expect(completed.first().locator('pre')).toContainText('choose_policy');
   await page.getByLabel('审计势力').selectOption('aurora');
-  await expect(page.locator('.audit-record')).toHaveCount(1);
+  await expect(page.locator('.audit-record')).toHaveCount(2);
   await page.getByLabel('审计类别').selectOption('economy');
   await expect(page.locator('.audit-record')).toHaveCount(10);
   for (const [label, extension] of [['导出编年史 Markdown', '.md'], ['导出审计 JSONL', '.jsonl']]) {
@@ -38,14 +40,15 @@ test('审计筛选、决策详情、编年史导出和四方八方政策面板',
   await expect(page.locator('.map-legend')).toContainText('LRS 覆盖');
   await expect(page.locator('.system-panel')).toContainText('本地视野');
   await page.getByRole('button', { name: '＋ 新比赛' }).click();
-  await page.getByLabel('AI 势力数量').selectOption('8');
+  await page.getByLabel('势力数量').selectOption('8');
   await page.getByLabel('最大轮数').fill('1');
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();
   await page.getByRole('button', { name: '▷ 单轮推进' }).click();
   await expect(page.locator('.result-banner')).toBeVisible();
   await expect(page.locator('.faction-card')).toHaveCount(8);
   await page.getByLabel('审计类别').selectOption('decision');
-  await expect(page.locator('.audit-record')).toHaveCount(8);
+  await expect(page.locator('.audit-record')).toHaveCount(16);
+  await expect(completed).toHaveCount(8);
   await page.screenshot({ path: '.data/verification/audit-eight.png', fullPage: true });
   expect(errors).toEqual([]);
 });

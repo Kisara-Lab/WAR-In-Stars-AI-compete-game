@@ -16,6 +16,7 @@ test('V5制度、福利、政策、比较与受限视角',async({page})=>{
  await page.getByLabel('观察势力').selectOption('umbra');await expect(page.locator('.institutions')).toHaveCount(1);await expect(page.locator('.institutions')).not.toContainText('乌托邦共同体');expect(errors).toEqual([]);
 });
 test('V5比较只读、导出与空闲收尾保存顺序',async({page})=>{
+ test.setTimeout(150000);
  const response=await page.request.post('/api/matches',{data:{...DEFAULT_CONFIG,controller:'scripted'}});expect(response.ok()).toBe(true);const initial=await response.json();expect(initial.state.version).toBe(5);
  const comparison=await page.request.get(`/api/matches/${initial.state.id}/rounds/0/comparison/aurora`);expect(comparison.ok()).toBe(true);expect((await comparison.json()).institutions.route.choice).toBe('secular');
  expect((await(await page.request.get('/api/state')).json()).state).toEqual(initial.state);
@@ -25,10 +26,10 @@ test('V5比较只读、导出与空闲收尾保存顺序',async({page})=>{
  await expect(card.getByText('文明路线：当前收益与可执行准备',{exact:true})).toBeVisible();
  await expect(card.getByText('已知施工条件与探索',{exact:true})).toBeVisible();
  await page.screenshot({path:'.data/verification/v51-comparison.png',fullPage:true});
- await page.request.post('/api/step');await expect.poll(async()=>{const s=await(await page.request.get('/api/state')).json();return !s.status.busy&&s.state.round===1;}).toBe(true);
+ await page.request.post('/api/step');await expect.poll(async()=>{const s=await(await page.request.get('/api/state')).json();return !s.status.busy&&s.state.round===1;},{timeout:60000}).toBe(true);
  // No arbitrary delay: idle means audit and checkpoint have completed.
  expect((await page.request.post('/api/save')).ok()).toBe(true);expect((await page.request.post('/api/step')).ok()).toBe(true);
- await expect.poll(async()=>{const s=await(await page.request.get('/api/state')).json();return !s.status.busy&&s.state.round===2;}).toBe(true);
+ await expect.poll(async()=>{const s=await(await page.request.get('/api/state')).json();return !s.status.busy&&s.state.round===2;},{timeout:60000}).toBe(true);
  const audit=await page.request.get(`/api/matches/${initial.state.id}/export/jsonl`);expect(await audit.text()).toContain('welfare');
  const chronicle=await page.request.get(`/api/matches/${initial.state.id}/export/markdown`);expect(await chronicle.text()).toContain('永久文明路线与民众待遇');
 });

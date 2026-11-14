@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { describe, it, expect } from 'vitest';
 import { createGame } from '../src/sim/world.js';
 import { DEFAULT_CONFIG, units } from '../src/shared/rules.js';
@@ -92,7 +93,7 @@ describe('V4.1 certified whole-turn planning',()=>{
   });
   it('preserves hidden information, pause and worker determinism',async()=>{
     const s=fixture();s.config.maxRounds=2;
-    const pools=[0,2,8].map(computeWorkers=>new PlanningPool(1,{v3:true,computeWorkers,planningCacheMiB:0}));
+    const pools=[0,2,8].map(n=>Math.min(n,Math.max(0,availableParallelism()-2))).map(computeWorkers=>new PlanningPool(1,{v3:true,computeWorkers,planningCacheMiB:0}));
     try {
       const results=[];
       for(const pool of pools)results.push((await pool.decide(s,undefined,undefined,undefined,['umbra'])).umbra);

@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import {describe,it,expect} from 'vitest';
 import {createGame} from '../src/sim/world.js';
 import {DEFAULT_CONFIG,units} from '../src/shared/rules.js';
@@ -205,7 +206,7 @@ describe('V4.12 continuous operations',()=>{
   it('keeps parallel execution, serialized memory and hidden changes deterministic',async()=>{
     const s=fixture();s.config.maxRounds=2;const outputs=[];
     const simulation=new SimulationPool(0);
-    try {for(const workers of [0,2,8]){const pool=new PlanningPool(1,{v3:true,computeWorkers:workers,planningCacheMiB:0});try{
+    try {for(const workers of [0,2,8].map(n=>Math.min(n,Math.max(0,availableParallelism()-2)))){const pool=new PlanningPool(1,{v3:true,computeWorkers:workers,planningCacheMiB:0});try{
       const decisions=await pool.decide(s,undefined,undefined,undefined,['umbra']);const d=decisions.umbra;
       const next=await advanceRound(s,simulation,{umbra:d.actions});commitScriptMemory(next,decisions);
       outputs.push({actions:d.actions,memory:d.scriptMemory,hash:stateHash(next)});

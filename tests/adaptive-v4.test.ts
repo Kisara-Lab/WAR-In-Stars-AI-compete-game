@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_CONFIG, units } from '../src/shared/rules.js';
 import { ADAPTIVE_V4 } from '../src/shared/adaptive-v4.js';
@@ -137,8 +138,8 @@ describe('adaptive-v4 crisis and campaigns',()=>{
   it('keeps deterministic actions and memory with filtered knowledge and planning workers',async()=>{
     const state=fixture();state.config.maxRounds=2;
     const serial=new PlanningPool(1,{v3:true,computeWorkers:0,planningCacheMiB:0});
-    const parallel=new PlanningPool(1,{v3:true,computeWorkers:2,planningCacheMiB:16});
-    const eight=new PlanningPool(1,{v3:true,computeWorkers:8,planningCacheMiB:128});
+    const parallel=new PlanningPool(1,{v3:true,computeWorkers:Math.min(2,Math.max(0,availableParallelism()-2)),planningCacheMiB:16});
+    const eight=new PlanningPool(1,{v3:true,computeWorkers:Math.min(8,Math.max(0,availableParallelism()-2)),planningCacheMiB:128});
     try {
       const before=stateHash(state),first=await serial.decide(state,undefined,undefined,undefined,['aurora']);
       const second=await parallel.decide(state,undefined,undefined,undefined,['aurora']);

@@ -204,6 +204,7 @@ describe('V4.12 continuous operations',()=>{
     expect(validateScriptPlan(s,'umbra',actions).ok).toBe(true);expect(validateScriptPlan(s,'umbra',[...actions,actions[0]]).ok).toBe(false);
   },120000);
   it('keeps parallel execution, serialized memory and hidden changes deterministic',async()=>{
+    console.info('Worker determinism coverage (requested 0/2/8; CPU-limited hosts do not cover larger pools):', [0,2,8].map(n=>Math.min(n,Math.max(0,availableParallelism()-2))));
     const s=fixture();s.config.maxRounds=2;const outputs=[];
     const simulation=new SimulationPool(0);
     try {for(const workers of [0,2,8].map(n=>Math.min(n,Math.max(0,availableParallelism()-2)))){const pool=new PlanningPool(1,{v3:true,computeWorkers:workers,planningCacheMiB:0});try{

@@ -137,6 +137,7 @@ describe('adaptive-v4 crisis and campaigns',()=>{
   });
   it('keeps deterministic actions and memory with filtered knowledge and planning workers',async()=>{
     const state=fixture();state.config.maxRounds=2;
+    console.info('Worker determinism coverage (requested 0/2/8; CPU-limited hosts do not cover larger pools):', [0,2,8].map(n=>Math.min(n,Math.max(0,availableParallelism()-2))));
     const serial=new PlanningPool(1,{v3:true,computeWorkers:0,planningCacheMiB:0});
     const parallel=new PlanningPool(1,{v3:true,computeWorkers:Math.min(2,Math.max(0,availableParallelism()-2)),planningCacheMiB:16});
     const eight=new PlanningPool(1,{v3:true,computeWorkers:Math.min(8,Math.max(0,availableParallelism()-2)),planningCacheMiB:128});

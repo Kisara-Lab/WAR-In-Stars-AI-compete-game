@@ -1,3 +1,7 @@
+import { adaptiveV412Decision } from './adaptive-v412.js';
+import { tacticalV412 } from './adaptive-v412-military.js';
+import { adaptiveV41Decision } from './adaptive-v41.js';
+import { tacticalV41 } from './adaptive-v41-military.js';
 import { availableParallelism, freemem } from 'node:os';
 import { createHash } from 'node:crypto';
 import { serialize } from 'node:v8';
@@ -9,6 +13,8 @@ import { scriptKnowledge } from './adaptive-knowledge.js';
 import { adaptiveV2Decision } from './adaptive-v2.js';
 import { economicForecast } from './forecast.js';
 import { adaptiveV3Decision } from './adaptive-v3.js';
+import { adaptiveV4Decision } from './adaptive-v4.js';
+import { tacticalV4, type TacticalRequestV4 } from './adaptive-v4-military.js';
 import type { ForecastScenario } from './forecast-v3.js';
 import { PlanningCache } from './planning-cache.js';
 import { planningPreview } from './planning-preview.js';
@@ -97,6 +103,7 @@ export class PlanningPool {
   private audit?:(actor:string,input:unknown)=>Promise<void>;
   private inputs=new Map<string,unknown>();
   private disposed=false;
+  private closing?:Promise<void>;
   private active=false;
   private roundToken='';
   private roundSequence=0;
@@ -117,6 +124,7 @@ export class PlanningPool {
         if(!message.state){this.planning!.send(worker,{kind:'context-miss',requestId:message.requestId});return;}
       }
       if(message.kind==='input')this.inputs.set(message.actor,message.input);
+      if(message.kind==='tactical-request')void this.tactical(message.state,message.request).then(result=>{if(!this.disposed)this.planning!.send(worker,{kind:'tactical-response',requestId:message.requestId,result});},error=>{if(!this.disposed)this.planning!.send(worker,{kind:'tactical-response',requestId:message.requestId,error:String(error)});});
       if(message.kind==='forecast-request')void this.forecast(message.state,message.actor,message.horizons,message.scenario).then(result=>{if(!this.disposed)this.planning!.send(worker,{kind:'forecast-response',requestId:message.requestId,result});},error=>{if(!this.disposed)this.planning!.send(worker,{kind:'forecast-response',requestId:message.requestId,error:String(error)});});
       if(message.kind==='preview-request')void this.preview(message.state,message.actor,message.actions,message.candidate).then(result=>{if(!this.disposed)this.planning!.send(worker,{kind:'preview-response',requestId:message.requestId,result});},error=>{if(!this.disposed)this.planning!.send(worker,{kind:'preview-response',requestId:message.requestId,error:String(error)});});
       if(message.kind==='candidates-request')void this.candidates(message.state,message.actor,message.limit).then(result=>{if(!this.disposed)this.planning!.send(worker,{kind:'candidates-response',requestId:message.requestId,result});},error=>{if(!this.disposed)this.planning!.send(worker,{kind:'candidates-response',requestId:message.requestId,error:String(error)});});
@@ -130,15 +138,16 @@ export class PlanningPool {
     if(key)this.cache.set(key,result);return result;
   };
   private preview=async(state:GameState,actor:string,actions:Action[],candidate:ScriptCandidate)=>this.forecasts?await this.forecasts.run({kind:'preview',state,actor,actions,candidate}) as ReturnType<typeof planningPreview>:planningPreview(state,actor,actions,candidate);
+  private tactical=async(state:GameState,request:TacticalRequestV4)=>this.forecasts?await this.forecasts.run({kind:'tactical',state,request}) as ReturnType<typeof tacticalV4>:(state.config.scriptStrategy==='adaptive-v4.12'?tacticalV412:state.config.scriptStrategy==='adaptive-v4.1'?tacticalV41:tacticalV4)(state,request);
   private candidates=async(state:GameState,actor:string,limit:number)=>this.forecasts?await this.forecasts.run({kind:'candidates',state,actor,limit}) as ReturnType<typeof candidateFacts>:candidateFacts(state,actor,true,limit,true);
-  async decide(state:GameState,signal?:AbortSignal,audit?:(actor:string,input:unknown)=>Promise<void>,strategies?:Record<string,string>) {
+  async decide(state:GameState,signal?:AbortSignal,audit?:(actor:string,input:unknown)=>Promise<void>,strategies?:Record<string,string>,participants?:readonly string[]) {
     if(this.disposed)throw new Error('规划池已关闭');
     if(this.active)throw new Error('同一规划池不能同时处理多个轮边界');
     if(state.rulesRevision!=='5.4')throw new Error('adaptive-v2 仅支持5.4');
     this.active=true;this.roundToken=state.id+':'+state.round+':'+(++this.roundSequence);
     const started=performance.now(),queued=(this.planning?.queueMs??0)+(this.forecasts?.queueMs??0),cacheHits=this.cache.hits,cacheMisses=this.cache.misses,cpu=process.cpuUsage(),lag=monitorEventLoopDelay({resolution:20});lag.enable();this.audit=audit;this.inputs.clear();this.cache.clear();this.metrics.copiedBytes=0;
     const copiedBefore=(this.planning?.copiedBytes??0)+(this.forecasts?.copiedBytes??0);
-    const actors=state.config.factionIds.filter(actor=>state.factions[actor].eliminatedDay===undefined);
+    const actors=state.config.factionIds.filter(actor=>state.factions[actor].eliminatedDay===undefined&&(!participants||participants.includes(actor)));
     const abort=()=>{void this.close();};signal?.addEventListener('abort',abort,{once:true});
     try {
       const jobs=actors.map(async actor=>{
@@ -146,8 +155,8 @@ export class PlanningPool {
         const known=scriptKnowledge(state,actor),memory=structuredClone(state.factions[actor].scriptMemory);
         if(strategies?.[actor])known.config.scriptStrategy=strategies[actor] as GameState['config']['scriptStrategy'];
         known.factions[actor].scriptMemory=memory;
-        const planner=known.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
-        return this.planning?await this.planning.run({kind:'plan',state:known,actor,memory,roundToken:this.roundToken,useContexts:!!this.config.planningCacheMiB}) as Decision:planner(known,actor,memory,{forecast:this.forecast,preview:this.preview,candidates:this.candidates,checkpoint:async()=>{await new Promise<void>(resolve=>setImmediate(resolve));if(signal?.aborted)throw new Error('比赛已暂停');},inputAudit:async input=>{this.inputs.set(actor,input);}});
+        const planner=known.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:known.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:known.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:known.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
+        return this.planning?await this.planning.run({kind:'plan',state:known,actor,memory,roundToken:this.roundToken,useContexts:!!this.config.planningCacheMiB}) as Decision:planner(known,actor,memory,{forecast:this.forecast,preview:this.preview,candidates:this.candidates,tactical:this.tactical,checkpoint:async()=>{await new Promise<void>(resolve=>setImmediate(resolve));if(signal?.aborted)throw new Error('比赛已暂停');},inputAudit:async input=>{this.inputs.set(actor,input);}});
       });
       const decisions=await Promise.all(jobs);
       if(signal?.aborted)throw new Error('比赛已暂停');
@@ -158,8 +167,8 @@ export class PlanningPool {
       this.metrics.copiedBytes=(this.planning?.copiedBytes??0)+(this.forecasts?.copiedBytes??0)-copiedBefore;
       return Object.fromEntries(actors.map((actor,index)=>[actor,decisions[index]]));
     } catch(error){await this.close();throw error;}
-    finally{this.active=false;lag.disable();signal?.removeEventListener('abort',abort);this.inputs.clear();this.cache.clear();this.inputContexts.clear();if(!this.disposed)this.forecasts?.clearContexts();}
+    finally{this.active=false;lag.disable();signal?.removeEventListener('abort',abort);this.inputs.clear();this.cache.clear();this.inputContexts.clear();if(!this.disposed)this.forecasts?.clearContexts();else await this.close();}
   }
   get closed(){return this.disposed;}
-  async close(){this.disposed=true;await Promise.all([this.planning?.close(),this.forecasts?.close()]);}
+  async close(){this.disposed=true;this.closing??=Promise.all([this.planning?.close(),this.forecasts?.close()]).then(()=>{});await this.closing;}
 }

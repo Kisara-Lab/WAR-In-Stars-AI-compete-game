@@ -33,8 +33,8 @@ test('八方外交矩阵、单向通行、条约倒计时与观察势力', async
   await expect(page.locator('.diplomacy-detail')).toContainText('等待翠星联邦');
   await page.screenshot({ path: '.data/verification/observer-diplomacy-eight.png', fullPage: true });
   await page.getByRole('button', { name: '＋ 新比赛' }).click();
-  await expect(page.getByLabel('AI 势力数量')).toHaveValue('8');
-  await page.getByLabel('AI 势力数量').selectOption('5');
+  await expect(page.getByLabel('势力数量')).toHaveValue('8');
+  await page.getByLabel('势力数量').selectOption('5');
   await expect(page.getByLabel('星系数量')).toHaveValue('50');
   await expect(page.getByRole('dialog').getByRole('combobox')).toHaveCount(7);
   expect(errors).toEqual([]);

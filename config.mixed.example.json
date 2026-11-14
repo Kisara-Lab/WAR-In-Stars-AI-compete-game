@@ -1,0 +1,16 @@
+{
+  "factionIds": ["aurora", "umbra", "verdant", "cobalt"],
+  "seed": "stars-2026",
+  "systemCount": 24,
+  "maxRounds": 120,
+  "controller": "mixed",
+  "factionControllers": {
+    "aurora": "model",
+    "umbra": "scripted",
+    "verdant": "model",
+    "cobalt": "scripted"
+  },
+  "models": { "aurora": "grok-4.7", "verdant": "grok-4.7" },
+  "scriptStrategy": "adaptive-v4.12",
+  "scriptSearchProfile": "standard"
+}

@@ -1,3 +1,4 @@
+import { reconcileWarV412 } from './adaptive-v412-memory.js';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
 import { ADAPTIVE } from '../shared/adaptive.js';
@@ -17,6 +18,7 @@ import { constructionOptions } from './industry.js';
 import { adaptiveResourceWeights } from './adaptive-economics.js';
 import { support } from '../shared/industry.js';
 import { v3FailureDependency } from './adaptive-v3-failures.js';
+import { reconcileWarV41 } from './adaptive-v41-memory.js';
 
 export function freezeInput<T>(value:T):Immutable<T> {
   if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freezeInput(child);}
@@ -148,9 +150,14 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
   for(const [actor,decision] of Object.entries(decisions)) {
     if(!decision.scriptMemory)continue;
     const memory=structuredClone(decision.scriptMemory);
+    reconcileWarV41(state,actor,memory);
+    reconcileWarV412(state,actor,memory);
     const alive=new Set(state.fleets.filter(fleet=>fleet.ownerId===actor).map(fleet=>fleet.id));
     memory.tasks=memory.tasks.filter(task=>alive.has(task.fleetId)).map(task=>{
       const fleet=state.fleets.find(fleet=>fleet.id===task.fleetId)!;
+      // V4.12 assembly/support arrival is not occupation. Its role is reconciled
+      // against the actual campaign and ship identities at the next boundary.
+      if(memory.version==='adaptive-v4.12')return task;
       return {...task,role:fleet.systemId===task.target&&!fleet.order?'hold':task.role};
     });
     for(const event of state.events.filter(event=>event.round===state.round&&event.type==='order'&&event.audience.includes(actor))) {
@@ -158,8 +165,8 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
       if(details?.factionId!==actor||details.accepted!==false||!details.action)continue;
       const selected=decision.scriptReport?.selected.find(item=>item.actions.some(action=>JSON.stringify(action)===JSON.stringify(details.action)));
       if(selected) {
-        const reason=memory.version==='adaptive-v3'?/资源|不足|费用|余额/.test(details.reason??'')?'资源条件未满足':/通行|闭境|边境|路径/.test(details.reason??'')?'路径通行条件未满足':/舰队|fleet/i.test(details.reason??'')?'舰队状态未满足':'共同结算归属或施工条件未满足':'共同结算未执行；等待对应本方事实或情报更新';
-        memory.failures.push({key:selected.id,fingerprint:memory.version==='adaptive-v3'?v3FailureDependency(scriptKnowledge(state,actor),actor,selected.actions,reason):selected.fingerprint,round:state.round,reason});
+        const reason=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(memory.version)?/资源|不足|费用|余额/.test(details.reason??'')?'资源条件未满足':/通行|闭境|边境|路径/.test(details.reason??'')?'路径通行条件未满足':/舰队|fleet/i.test(details.reason??'')?'舰队状态未满足':'共同结算归属或施工条件未满足':'共同结算未执行；等待对应本方事实或情报更新';
+        memory.failures.push({key:selected.id,fingerprint:['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(memory.version)?v3FailureDependency(scriptKnowledge(state,actor),actor,selected.actions,reason):selected.fingerprint,round:state.round,reason});
       }
     }
     memory.failures=memory.failures.slice(-64);

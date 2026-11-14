@@ -17,6 +17,7 @@ test('V3 profiles, compute settings, combinations and governance',async({page})=
   const panel=page.getByRole('region',{name:'智能脚本规划'});
   await panel.locator(':scope > details').first().locator('summary').first().click();
   await expect(panel).toContainText('组合搜索');await expect(panel).toContainText('治理及责任情景');
+  await expect(panel).toContainText('整轮行动');await expect(panel).toContainText('停手原因');await expect(panel).toContainText('福利持续性校验');
   const snapshot=await(await page.request.get('/api/state')).json();
   expect(snapshot.state.config.scriptSearchProfile).toBe('standard');
   expect(snapshot.state.config.computeWorkers).toBeUndefined();

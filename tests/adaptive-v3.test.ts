@@ -14,16 +14,92 @@ import { advanceRound } from '../src/sim/engine.js';
 import { SimulationPool } from '../src/sim/pool.js';
 import { commitScriptMemory } from '../src/sim/adaptive-adapter.js';
 import { stateChanges,applyStateChanges } from '../src/sim/planning-delta.js';
-import { campaignCandidates } from '../src/sim/adaptive-v3-campaign.js';
+import { campaignCandidates, defenseOutlook, defenseCandidates } from '../src/sim/adaptive-v3-campaign.js';
 import type { ScriptMemory } from '../src/shared/adaptive.js';
 import type { ScriptCandidate } from '../src/sim/adaptive-types.js';
 import { candidateFacts } from '../src/sim/adaptive-candidates.js';
 import { newResponsibility } from '../src/shared/responsibility.js';
 import { forecastResponsibility } from '../src/sim/forecast-v3.js';
+import { v3Coverage, v3PositionValue } from '../src/sim/adaptive-v3-values.js';
+import { relationKey } from '../src/shared/diplomacy.js';
 
 const game=()=>createGame({...structuredClone(DEFAULT_CONFIG),controller:'scripted',scriptStrategy:'adaptive-v3',scriptSearchProfile:'standard'},'v3-fixture');
 
 describe('adaptive-v3 fixed work and isolation',()=>{
+  it('continues useful independent actions after combination forecasts and rejects action 49',async()=>{
+    const state=game();state.config.maxRounds=2;
+    const own=state.factions.aurora,home=state.systems.find(system=>system.ownerId==='aurora')!,source=state.fleets.find(fleet=>fleet.ownerId==='aurora')!;
+    own.resources={energy:units(100000),food:units(100000),minerals:units(100000),alloys:units(100000)};
+    state.fleets=Array.from({length:49},(_,index)=>({...structuredClone(source),id:'command-'+index,systemId:home.id,order:null,transit:null}));
+    const world=scriptKnowledge(state,'aurora'),generated=candidateFacts(world,'aurora',true);
+    const candidates:ScriptCandidate[]=world.fleets.map(fleet=>({id:fleet.id,label:fleet.id,kind:'scout',target:home.id,actions:[{type:'move_fleet',args:{fleetId:fleet.id,systemId:home.id,x:700,y:700,targetFleetId:null}}],priority:0,value:10,risk:0,reason:'independent useful fixture mission',evidenceDays:[0],progress:'',deadline:200,economic:false,exclusive:['fleet:'+fleet.id],fingerprint:'',tasks:[]}));
+    const decision=await adaptiveV3Decision(world,'aurora',undefined,{candidates:async()=>({...generated,candidates})});
+    expect(decision.actions).toHaveLength(48);
+    expect(decision.scriptReport!.turn!.stages.residual.actions).toBeGreaterThan(0);
+    expect(decision.scriptReport!.turn!.stages.combination.forecasts).toBeLessThanOrEqual(24);
+    expect(decision.scriptReport!.forecasts).toBeLessThanOrEqual(48);
+    const stage=new StagingArea(world,'aurora');
+    for(const candidate of candidates.slice(0,48))expect(stage.execute(candidate.actions[0].type,candidate.actions[0].args).ok).toBe(true);
+    const hash=stateHash(stage.draft);expect(stage.execute(candidates[48].actions[0].type,candidates[48].actions[0].args).ok).toBe(false);
+    expect(stage.actions).toHaveLength(48);expect(stateHash(stage.draft)).toBe(hash);
+  },30000);
+  it('rejects high welfare that exhausts supplies beyond the first 300 days',async()=>{
+    const state=game(),own=state.factions.aurora;
+    const planet=state.systems.find(system=>system.ownerId==='aurora')!.planets[0];
+    planet.population=20;delete planet.operation;planet.structures=[{id:'farm1',type:'farm'},{id:'farm2',type:'farm'},{id:'solar',type:'solar'},{id:'mine',type:'mine'}];
+    own.resources={energy:units(900),food:units(300),minerals:units(900),alloys:0};
+    const world=scriptKnowledge(state,'aurora'),generated=candidateFacts(world,'aurora',true);
+    const choices=generated.candidates.filter(candidate=>candidate.kind==='welfare'&&candidate.actions[0].args.welfare==='utopian');
+    expect(choices).toHaveLength(1);
+    const upgraded=structuredClone(world);upgraded.factions.aurora.welfare!.choice='utopian';
+    const normal=economicForecast(world,'aurora',[300,720,1440],{actionable:false});
+    const expensive=economicForecast(upgraded,'aurora',[300,720,1440],{actionable:false});
+    expect(expensive.horizons.at(-1)!.unpaidDays).toBeGreaterThan(normal.horizons.at(-1)!.unpaidDays);
+    const decision=await adaptiveV3Decision(world,'aurora',undefined,{candidates:async()=>({...generated,candidates:choices})});
+    expect(decision.actions.some(action=>action.type==='set_welfare'&&action.args.welfare==='utopian')).toBe(false);
+  },30000);
+  it('detects approaching border fleets and values paid defenders before arrival',()=>{
+    const state=game(),home=state.systems.find(system=>system.ownerId==='aurora')!,border=state.systems.find(system=>home.neighbors.includes(system.id))!;
+    const enemy=structuredClone(state.fleets.find(fleet=>fleet.ownerId==='umbra')!);enemy.systemId=border.id;enemy.order=null;enemy.ships=Array.from({length:10},(_,index)=>({id:'enemy-'+index,type:'destroyer',hull:60}));
+    state.relations[relationKey('aurora','umbra')].status='war';
+    state.factions.aurora.militaryIntel![border.id]={day:0,source:'lrs',ownerId:enemy.ownerId,base:null,fleets:[enemy]};
+    const before=defenseOutlook(state,'aurora').find(threat=>threat.systemId===home.id)!;
+    expect(before.arrival).toBeGreaterThan(0);expect(before.deficit).toBeGreaterThan(0);
+    const planet=home.planets[0],stage=new StagingArea(state,'aurora');state.factions.aurora.resources.alloys=units(10000);
+    stage.draft.factions.aurora.resources.alloys=units(10000);
+    expect(stage.execute('queue_ships',{planetId:planet.id,shipType:'destroyer',count:1}).ok).toBe(true);
+    home.projects=stage.draft.systems.find(system=>system.id===home.id)!.projects;home.projects[0].progress=home.projects[0].requiredDays*1000-1;
+    const after=defenseOutlook(state,'aurora').find(threat=>threat.systemId===home.id)!;
+    expect(after.paidPower).toBeGreaterThan(0);expect(after.deficit).toBeLessThan(before.deficit);
+    expect(defenseCandidates(state,'aurora').every(candidate=>candidate.kind==='defend')).toBe(true);
+  });
+  it('uses the same facility values for static and detailed assessments without mutating knowledge',()=>{
+    const state=game(),home=state.systems.find(system=>system.ownerId==='aurora')!,planet=home.planets[0];
+    planet.population=30;planet.structures.push({id:'sensor',type:'lrs'},{id:'dock',type:'drydock'});delete planet.operation;
+    const coverage=v3Coverage(state,'aurora'),hash=stateHash(state),value=v3PositionValue(state,'aurora',12000,coverage);
+    expect(value.functional).toBeGreaterThan(0);
+    const projection=economicForecast(state,'aurora',[10],{actionable:false,coverage,endDay:12000});
+    expect(projection.horizons[0].governance!.value!.functional).toBeGreaterThan(0);
+    planet.structures.find(structure=>structure.id==='sensor')!.sealed=true;
+    expect(v3PositionValue(state,'aurora',12000,coverage).functional).toBeLessThan(value.functional);
+    planet.structures.find(structure=>structure.id==='sensor')!.sealed=false;
+    delete planet.structures.find(structure=>structure.id==='sensor')!.sealed;
+    expect(stateHash(state)).toBe(hash);
+  });
+  it('deducts prepaid arriving ships from campaign reserves and retains alternative opponents',()=>{
+    const state=game(),home=state.systems.find(system=>system.ownerId==='aurora')!,target=state.systems.find(system=>home.neighbors.includes(system.id))!;
+    target.ownerId='umbra';target.base={hull:500};state.factions.aurora.resources.alloys=units(10000);
+    state.factions.aurora.militaryIntel![target.id]={day:0,source:'lrs',ownerId:'umbra',base:target.base,fleets:[]};
+    const candidate:ScriptCandidate={id:'conquest',label:'conquest',kind:'prepare',target:target.id,actions:[{type:'prepare_conquest',args:{factionId:'umbra'}}],priority:0,value:100,risk:0,reason:'fixture',evidenceDays:[0],progress:'',deadline:12000,economic:true,exclusive:['conquest'],fingerprint:'',tasks:[]};
+    const alternative={...candidate,id:'alternative',target:'cobalt',actions:[{type:'prepare_conquest',args:{factionId:'cobalt'}}]};
+    const memory:ScriptMemory={version:'adaptive-v3',goal:null,tasks:[],failures:[]};
+    expect(campaignCandidates(state,'aurora',memory,[candidate,alternative]).some(item=>item.id==='alternative')).toBe(true);
+    const before=memory.campaign!.reserve.minerals;
+    const stage=new StagingArea(state,'aurora');expect(stage.execute('queue_ships',{planetId:home.planets[0].id,shipType:'destroyer',count:1}).ok).toBe(true);
+    const queued=stage.draft.systems.find(system=>system.id===home.id)!;queued.projects[0].progress=queued.projects[0].requiredDays*1000-1;
+    campaignCandidates(stage.draft,'aurora',memory,[candidate,alternative]);
+    expect(memory.campaign!.paidPower).toBeGreaterThan(0);expect(memory.campaign!.reserve.minerals).toBeLessThan(before);
+  });
   it('evaluates restart plus staffing even when neither repairs supply alone',async()=>{
     const state=game(),home=state.systems.find(system=>system.ownerId==='aurora')!,planet=home.planets[0];
     planet.population=6;delete planet.operation;
@@ -95,6 +171,16 @@ describe('adaptive-v3 fixed work and isolation',()=>{
     state.factions[actor].intel[home.id].day++;
     expect(v3FailureDependency(state,actor,actions,'归属失败')).not.toBe(before);
   });
+  it('mineral-funded retry ignores unrelated food and energy income',()=>{
+    const state=game(),home=state.systems.find(system=>system.ownerId==='aurora')!;
+    const actions=[{type:'build_starbase',args:{systemId:home.id}}];
+    const before=v3FailureDependency(state,'aurora',actions,'资源条件未满足');
+    state.factions.aurora.resources.food+=units(50);
+    state.factions.aurora.resources.energy+=units(50);
+    expect(v3FailureDependency(state,'aurora',actions,'资源条件未满足')).toBe(before);
+    state.factions.aurora.resources.minerals+=units(50);
+    expect(v3FailureDependency(state,'aurora',actions,'资源条件未满足')).not.toBe(before);
+  });
   it('cache eviction preserves results and bounds retained bytes',()=>{
     const cache=new PlanningCache<number[]>(50);
     cache.set('first',[1,2,3]);expect(cache.get('first')).toEqual([1,2,3]);
@@ -142,6 +228,15 @@ describe('adaptive-v3 fixed work and isolation',()=>{
     const rejected=expect(computation).rejects.toThrow();
     await worker.terminate();await rejected;
     expect(stateHash(state)).toBe(before);expect(pool.closed).toBe(true);await pool.close();
+  },30000);
+  it('pause during worker planning discards the whole uncommitted round',async()=>{
+    if(availableParallelism()<4)return;
+    const state=game(),before=stateHash(state),pool=new PlanningPool(4,{v3:true,computeWorkers:2,planningCacheMiB:1}),abort=new AbortController();
+    const computation=pool.decide(state,abort.signal);
+    const rejected=expect(computation).rejects.toThrow();
+    const timer=setTimeout(()=>abort.abort(),100);
+    try {await rejected;expect(stateHash(state)).toBe(before);expect(pool.closed).toBe(true);}
+    finally {clearTimeout(timer);await pool.close();}
   },30000);
   it('a failed batch does not retain earlier changes',()=>{
     const state=game(),stage=new StagingArea(state,'aurora'),hash=stateHash(stage.draft);

@@ -52,7 +52,7 @@ test('观察界面可创建比赛、查看星系、推进整局和复盘', async
   await expect(page.getByRole('dialog')).toContainText('无畏舰');
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await page.getByRole('button', { name: '＋ 新比赛' }).click();
-  await page.getByLabel('AI 势力数量').selectOption('8');
+  await page.getByLabel('势力数量').selectOption('8');
   await page.getByLabel('最大轮数').fill('1');
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();
   await expect(page.locator('.faction-heading h2')).toHaveCount(8);

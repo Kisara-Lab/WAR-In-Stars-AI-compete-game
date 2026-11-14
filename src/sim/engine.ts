@@ -190,26 +190,7 @@ export function settleEconomy(state: GameState, outputs: LocalOutput[], previous
     faction.unity = Math.max(0, Math.min(10000, faction.unity + Math.round((cohesion.total + (balancedRules(state) ? (previousFactors[factionId].warUnity ?? 0) - (cohesion.war ?? 0) : 0)) * RULES.tickDays)));
     if (JSON.stringify(oldShortages) !== JSON.stringify(short)) appendEvents(state, [{ day: state.day, type: 'economy', text: `${faction.name}供应状态：${Object.entries(short).filter(([, value]) => value).map(([resource]) => ({ energy: '电力', food: '食物', minerals: '矿物维护' })[resource]).join('、') || '供应恢复正常'}`, systemId: null, audience: [factionId] }]);
     if (Object.values(previousFactors[factionId].shortages).some(Boolean)) continue;
-    const repair = (hull: number, maximum: number, cost: number, alloyCost = 0) => {
-      let amount = Math.min(maximum - hull, maximum * RULES.repairFractionPerRound * RULES.tickDays / RULES.daysPerRound);
-      if (industrial(state) && amount > 0) {
-        const wantedM = units(cost * RULES.repairCostFraction * amount / maximum), wantedA = units(alloyCost * RULES.repairCostFraction * amount / maximum);
-        amount *= Math.min(1, wantedM ? faction.resources.minerals / wantedM : 1, wantedA ? (faction.resources.alloys ?? 0) / wantedA : 1);
-      }
-      const price = units(cost * RULES.repairCostFraction * amount / maximum);
-      const alloyPrice = units(alloyCost * RULES.repairCostFraction * amount / maximum);
-      if (amount <= 0 || faction.resources.minerals < price) return hull;
-      faction.resources.minerals -= price;
-      if (industrial(state)) { faction.resources.alloys = Math.max(0, (faction.resources.alloys ?? 0) - alloyPrice); faction.lastIncome.alloys = (faction.lastIncome.alloys ?? 0) - alloyPrice; }
-      faction.lastIncome.minerals -= price;
-      return Math.round((hull + amount) * 1000) / 1000;
-    };
-    for (const system of state.systems) if (controller(system) === factionId && system.base && operational(system, state.day - RULES.tickDays)) {
-      system.base.hull = repair(system.base.hull, BASE.power, BASE.minerals);
-      for (const fleet of state.fleets.filter(candidate => candidate.ownerId === factionId && candidate.systemId === system.id && distance(candidate.position, { x: 500, y: 500 }) <= RULES.repairRadius)) {
-        for (const ship of [...fleet.ships].sort((first, second) => first.id.localeCompare(second.id))) ship.hull = repair(ship.hull, SHIPS[ship.type].power, industrial(state) ? shipMaterials(ship.type).minerals / 1000 : SHIPS[ship.type].minerals, industrial(state) ? shipMaterials(ship.type).alloys! / 1000 : 0);
-      }
-    }
+    repairFaction(state,factionId);
   }
   return capture ? factionIds(state).map(factionId => ({ factionId, ...(emergencyRules(state)?{specialSubsidy:state.factions[factionId].extraction?.last}:{}), ...(modern(state) ? { welfare: state.factions[factionId].welfare?.last, civilization: state.factions[factionId].civilization } : {}), ...(industrial(state) ? { processing: processing.filter(p => (p as {actor:string}).actor === factionId) } : {}), repairAlloys: industrial(state) ? (before[factionId].resources.alloys ?? 0) + (income[factionId].alloys ?? 0) - (state.factions[factionId].resources.alloys ?? 0) : undefined, localEconomy: balancedRules(state) ? outputs.flatMap(output => output.economicDetails).filter(detail => detail.factionId === factionId) : undefined, warExpense: balancedRules(state) ? { multiplier: previousFactors[factionId].warUpkeep, unity: previousFactors[factionId].warUnity, baseShipUpkeepPer100: warBurden(state, factionId).base, extra: { energy: warBurden(state, factionId).base.energy * ((previousFactors[factionId].warUpkeep ?? 1) - 1) * RULES.tickDays / 100, minerals: warBurden(state, factionId).base.minerals * ((previousFactors[factionId].warUpkeep ?? 1) - 1) * RULES.tickDays / 100 } } : undefined, production: income[factionId], upkeep: upkeep[factionId], before: { resources: before[factionId].resources, unity: before[factionId].unity, shortages: before[factionId].shortages }, after: { resources: state.factions[factionId].resources, unity: state.factions[factionId].unity, shortages: state.factions[factionId].shortages }, inventoryChange: Object.fromEntries(Object.entries(state.factions[factionId].resources).map(([resource, amount]) => [resource, (amount ?? 0) - (before[factionId].resources[resource as keyof Resources] ?? 0)])), repairMinerals: Math.max(0, before[factionId].resources.minerals + income[factionId].minerals - upkeep[factionId].minerals) - state.factions[factionId].resources.minerals, multipliers: { ...previousFactors[factionId], supply: supplyFactor(previousFactors[factionId].shortages), productivity: (0.5 + previousFactors[factionId].unity / 10000) * supplyFactor(previousFactors[factionId].shortages), policyEffects: previousFactors[factionId].policyEffects ?? POLICIES[previousFactors[factionId].policy?.choice ?? 'none'] }, annexations: balancedRules(state) ? state.systems.filter(system => system.ownerId === factionId && system.annexation).map(system => ({ systemId: system.id, ...system.annexation, paused: controller(system) !== factionId })) : undefined, cohesion: cohesionBreakdown(revised(state) ? { ...state, day: state.day - RULES.tickDays, factions: { ...state.factions, [factionId]: { ...state.factions[factionId], faith: previousFactors[factionId].faith, beacon: previousFactors[factionId].beacon } } } : state, factionId, previousFactors[factionId].shortages) })) : [];
 }
@@ -313,4 +294,29 @@ export async function advanceRound(original: GameState, pool: SimulationPool, ac
   state.round++;
   state.events = state.events.slice(-1500);
   return state;
+}
+
+/** Shared deterministic repair step; caller supplies the prior supply gate. */
+export function repairFaction(state:GameState,factionId:string) {
+  const faction=state.factions[factionId];
+    const repair = (hull: number, maximum: number, cost: number, alloyCost = 0) => {
+      let amount = Math.min(maximum - hull, maximum * RULES.repairFractionPerRound * RULES.tickDays / RULES.daysPerRound);
+      if (industrial(state) && amount > 0) {
+        const wantedM = units(cost * RULES.repairCostFraction * amount / maximum), wantedA = units(alloyCost * RULES.repairCostFraction * amount / maximum);
+        amount *= Math.min(1, wantedM ? faction.resources.minerals / wantedM : 1, wantedA ? (faction.resources.alloys ?? 0) / wantedA : 1);
+      }
+      const price = units(cost * RULES.repairCostFraction * amount / maximum);
+      const alloyPrice = units(alloyCost * RULES.repairCostFraction * amount / maximum);
+      if (amount <= 0 || faction.resources.minerals < price) return hull;
+      faction.resources.minerals -= price;
+      if (industrial(state)) { faction.resources.alloys = Math.max(0, (faction.resources.alloys ?? 0) - alloyPrice); faction.lastIncome.alloys = (faction.lastIncome.alloys ?? 0) - alloyPrice; }
+      faction.lastIncome.minerals -= price;
+      return Math.round((hull + amount) * 1000) / 1000;
+    };
+    for (const system of state.systems) if (controller(system) === factionId && system.base && operational(system, state.day - RULES.tickDays)) {
+      system.base.hull = repair(system.base.hull, BASE.power, BASE.minerals);
+      for (const fleet of state.fleets.filter(candidate => candidate.ownerId === factionId && candidate.systemId === system.id && distance(candidate.position, { x: 500, y: 500 }) <= RULES.repairRadius)) {
+        for (const ship of [...fleet.ships].sort((first, second) => first.id.localeCompare(second.id))) ship.hull = repair(ship.hull, SHIPS[ship.type].power, industrial(state) ? shipMaterials(ship.type).minerals / 1000 : SHIPS[ship.type].minerals, industrial(state) ? shipMaterials(ship.type).alloys! / 1000 : 0);
+      }
+    }
 }

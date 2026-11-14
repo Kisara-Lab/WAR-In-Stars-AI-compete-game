@@ -1,3 +1,4 @@
+import { factionController, controllerLabel, validateControllers } from '../shared/controllers.js';
 import { migrateEmergency } from '../sim/emergency.js';
 import { migrateGovernance } from '../sim/governance.js';
 import { migrateCivilization, migrateDecisionBalance, migrateResponsibilities } from '../sim/civilization.js';
@@ -77,6 +78,7 @@ export class MatchRunner {
 
   async create(config: MatchConfig, workers = this.pool.size, planning:PlanningConfig={}) {
     if (this.status.busy || this.status.running || this.active) throw new Error('请先暂停并等待当前轮停止');
+    validateControllers(config);
     const state = createGame(config);
     if(this.planningPool){await this.planningPool.close();this.planningPool=undefined;}
     this.planningOptions=planning;
@@ -177,33 +179,42 @@ export class MatchRunner {
     this.attemptId = randomUUID();
     await this.audit('attempt.started', { stateHash: stateHash(base), controller: base.config.controller });
     const activeIds = factionIds(base).filter(id => base.factions[id].eliminatedDay === undefined);
-    for (const factionId of activeIds) this.status.ai[factionId] = { status: base.config.controller === 'model' ? '准备连接模型' : '脚本规划中', requests: 0, actions: 0 };
+    const scriptIds = activeIds.filter(id => factionController(base.config, id) === 'scripted');
+    const modelIds = activeIds.filter(id => factionController(base.config, id) === 'model');
+    for (const factionId of activeIds) await this.audit('decision.controller', { controller: factionController(base.config, factionId), label: controllerLabel(base.config, factionId) }, factionId);
+    for (const factionId of activeIds) this.status.ai[factionId] = { status: modelIds.includes(factionId) ? '准备连接模型' : '脚本规划中', requests: 0, actions: 0 };
     this.emit();
-    let decisions: Record<FactionId, Decision>;
-    if (base.config.controller === 'scripted') {
-      decisions = {};
-      try {
-        if(['adaptive-v2','adaptive-v3'].includes(base.config.scriptStrategy??'')&&this.scriptController===scriptedDecision) {
-          if(!this.planningPool||this.planningPool.closed)this.planningPool=new PlanningPool(base.config.factionIds.length,{...this.planningOptions,v3:base.config.scriptStrategy==='adaptive-v3'});
-          decisions=await this.planningPool.decide(base,abort.signal,async(actor,input)=>{await this.audit('script.input',input,actor);});
-          await this.audit('script.performance',this.planningPool.metrics);
-        } else for (const factionId of activeIds) {
-          if(base.config.scriptStrategy==='adaptive-v1'&&base.rulesRevision==='5.4'&&this.scriptController===scriptedDecision) {
-            decisions[factionId]=await adaptiveDecision(base,factionId,abort.signal,{inputAudit:async input=>{await this.audit('script.input',input,factionId);}});
-          } else {
-            await this.audit('script.input',observation(base,factionId,null,undefined,this.scriptAuditProjection),factionId);
-            decisions[factionId]=await this.scriptController(base,factionId);
-          }
-          if(abort.signal.aborted){this.status.phase='paused';return;}
+    let decisions: Record<FactionId, Decision> = {};
+    let firstFailure: unknown;
+    const decideScripts = async () => {
+      if (!scriptIds.length) return;
+      let planned: Record<FactionId, Decision> = {};
+      if (['adaptive-v2', 'adaptive-v3', 'adaptive-v4', 'adaptive-v4.1','adaptive-v4.12'].includes(base.config.scriptStrategy ?? '') && this.scriptController === scriptedDecision) {
+        if (!this.planningPool || this.planningPool.closed) this.planningPool = new PlanningPool(base.config.factionIds.filter(id => factionController(base.config, id) === 'scripted').length, { ...this.planningOptions, v3: ['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(base.config.scriptStrategy??'') });
+        planned = await this.planningPool.decide(base, abort.signal, async (actor, input) => { await this.audit('script.input', input, actor); }, base.config.scriptStrategies, scriptIds);
+        await this.audit('script.performance', this.planningPool.metrics);
+      } else for (const factionId of scriptIds) {
+        if (abort.signal.aborted) throw new Error('比赛已暂停');
+        if (base.config.scriptStrategy === 'adaptive-v1' && base.rulesRevision === '5.4' && this.scriptController === scriptedDecision) {
+          planned[factionId] = await adaptiveDecision(base, factionId, abort.signal, { inputAudit: async input => { await this.audit('script.input', input, factionId); } });
+        } else {
+          await this.audit('script.input', observation(base, factionId, null, undefined, this.scriptAuditProjection), factionId);
+          planned[factionId] = await this.scriptController(base, factionId);
         }
-      } catch(error) { if(abort.signal.reason==='user_pause'){this.status.phase='paused';return;} throw error; }
-      for (const factionId of activeIds) {
-        this.status.ai[factionId] = { status: '命令已提交', requests: 0, actions: decisions[factionId].actions.length };
-        this.status.metrics[factionId].durationMs += decisions[factionId].metrics.durationMs;
       }
-    } else {
+      if (abort.signal.aborted) throw new Error('比赛已暂停');
+      for (const factionId of scriptIds) {
+        decisions[factionId] = planned[factionId];
+        this.status.ai[factionId] = { status: '命令已提交', requests: 0, actions: planned[factionId].actions.length };
+        this.status.metrics[factionId].durationMs += planned[factionId].metrics.durationMs;
+      }
+      this.emit();
+    };
+    const decideModels = async () => {
+      if (!modelIds.length) return;
       const provider = await this.providerFactory();
-      const requests = activeIds.map(async factionId => {
+      if (abort.signal.aborted) throw new Error('比赛已暂停');
+      const requests = modelIds.map(async factionId => {
         let previous: DecisionMetrics = emptyMetrics();
         const updateMetrics = (metrics: DecisionMetrics) => {
           const total = this.status.metrics[factionId];
@@ -213,22 +224,33 @@ export class MatchRunner {
           previous = { ...metrics };
           this.emit();
         };
-        return provider.decide(base, factionId, abort.signal, (status, requests, actions) => { this.status.ai[factionId] = { status, requests, actions }; this.emit(); }, updateMetrics, async (category, data) => { await this.audit(category, sanitize(data), factionId); }, this.lastDecisions?.[factionId]?.trace.filter(trace => !trace.ok || trace.disposition === 'rolled_back').map(trace => ({ round: base.round, ...trace })) ?? []).then(async decision => { await this.audit('decision.completed', decision, factionId); return decision; }).catch(error => { abort.abort('peer_error'); throw error; });
-      });
-      const result = await Promise.allSettled(requests);
-      const failed = result.find(item => item.status === 'rejected');
-      if (failed?.status === 'rejected') {
-        if (abort.signal.reason === 'user_pause') {
-          this.status.phase = 'paused'; return;
+        try {
+          const decision = await provider.decide(base, factionId, abort.signal, (status, requests, actions) => { this.status.ai[factionId] = { status, requests, actions }; this.emit(); }, updateMetrics, async (category, data) => { await this.audit(category, sanitize(data), factionId); }, this.lastDecisions?.[factionId]?.trace.filter(trace => !trace.ok || trace.disposition === 'rolled_back').map(trace => ({ round: base.round, ...trace })) ?? []);
+          if (!abort.signal.aborted) decisions[factionId] = decision;
+        } catch (error) {
+          firstFailure ??= error;
+          abort.abort('peer_error');
+          throw error;
         }
-        const substantive = result.find(item => item.status === 'rejected' && item.reason instanceof Error && !item.reason.message.includes('比赛已暂停'));
-        throw substantive?.status === 'rejected' ? substantive.reason : failed.reason;
-      }
-      decisions = Object.fromEntries(activeIds.map((id, index) => [id, (result[index] as PromiseFulfilledResult<Decision>).value]));
+      });
+      const results = await Promise.allSettled(requests);
+      const failure = results.find(result => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
+    };
+    const guard = async (work: () => Promise<void>) => {
+      try { await work(); }
+      catch (error) { firstFailure ??= error; abort.abort('peer_error'); throw error; }
+    };
+    await Promise.allSettled([guard(decideModels), guard(decideScripts)]);
+    if (abort.signal.reason === 'user_pause') { this.status.phase = 'paused'; return; }
+    if (firstFailure) throw firstFailure;
+    if (abort.signal.aborted) throw new Error('本轮决策已取消');
+    decisions = Object.fromEntries(activeIds.map(id => [id, decisions[id]]));
+    for (const factionId of activeIds) {
+      if (!decisions[factionId]) throw new Error('缺少势力决策：' + factionId);
+      decisions[factionId] = sanitize(decisions[factionId]);
+      await this.audit('decision.completed', decisions[factionId], factionId);
     }
-    if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
-    decisions = sanitize(decisions);
-    if (base.config.controller === 'scripted') for (const factionId of activeIds) await this.audit('decision.completed', decisions[factionId], factionId);
     this.status.phase = 'simulating'; this.emit();
     const next = await advanceRound(base, this.pool, factionRecord(activeIds, id => decisions[id].actions), async batch => {
       const common = { day: batch.day, round: base.round + 1, attemptId: this.attemptId };
@@ -241,14 +263,14 @@ export class MatchRunner {
     });
     if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
     for (const factionId of activeIds) next.factions[factionId].strategies = [...next.factions[factionId].strategies, { round: next.round, text: decisions[factionId].summary }].slice(-5);
-    commitScriptMemory(next,decisions);
+    commitScriptMemory(next, factionRecord(scriptIds, id => decisions[id]));
     const checkpoint = { version: next.version, state: next, lastDecisions: decisions, metrics: this.status.metrics };
     const hash = stateHash(next);
     const prepared = await this.audit('round.prepared', { hash, actions: Object.fromEntries(Object.entries(decisions).map(([id, decision]) => [id, decision.actions])) }, undefined, next.day);
     if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
     const saveStarted=performance.now();
     await this.store.commit({ round: next.round, decisions, hash, state: next, attemptId: this.attemptId, auditHash: prepared.hash, metrics: structuredClone(this.status.metrics) }, checkpoint, () => { this.state = next; this.lastDecisions = decisions; this.attemptId = undefined; });
-    if(['adaptive-v2','adaptive-v3'].includes(next.config.scriptStrategy??''))await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
+    if(['adaptive-v2','adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(next.config.scriptStrategy??''))await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
     this.emit();
     await new Promise<void>(resolve => setImmediate(resolve));
   }

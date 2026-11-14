@@ -3,9 +3,12 @@ import { supportedAt } from '../shared/emergency.js';
 import type { GameState } from '../shared/types.js';
 
 export interface ForecastScenario {
+  version?: 'v4' | 'v4.1' | 'v4.12';
   actionable: boolean;
   successDay?: number;
   rescueDueDay?: number;
+  coverage?: Record<string,{systemId:string;day:number|null;value:number}[]>;
+  endDay?: number;
 }
 
 export function forecastResponsibility(state: GameState, actor: string, scenario: ForecastScenario) {

@@ -1,6 +1,12 @@
+import { adaptiveV412Decision } from './adaptive-v412.js';
+import { tacticalV412 } from './adaptive-v412-military.js';
+import { adaptiveV41Decision } from './adaptive-v41.js';
+import { tacticalV41 } from './adaptive-v41-military.js';
 import { parentPort,threadId } from 'node:worker_threads';
 import { adaptiveV2Decision } from './adaptive-v2.js';
 import { adaptiveV3Decision } from './adaptive-v3.js';
+import { adaptiveV4Decision } from './adaptive-v4.js';
+import { tacticalV4, type TacticalRequestV4 } from './adaptive-v4-military.js';
 import type { ForecastScenario } from './forecast-v3.js';
 import { planningPreview } from './planning-preview.js';
 import { candidateFacts } from './adaptive-candidates.js';
@@ -9,6 +15,7 @@ import type { GameState } from '../shared/types.js';
 import type { ScriptMemory } from '../shared/adaptive.js';
 
 const waiting=new Map<number,{resolve:(value:ReturnType<typeof economicForecast>)=>void;reject:(error:Error)=>void}>();
+const tactics=new Map<number,{resolve:(value:ReturnType<typeof tacticalV4>)=>void;reject:(error:Error)=>void}>();
 const previews=new Map<number,{resolve:(value:ReturnType<typeof planningPreview>)=>void;reject:(error:Error)=>void}>();
 const candidateRequests=new Map<number,{resolve:(value:ReturnType<typeof candidateFacts>)=>void;reject:(error:Error)=>void}>();
 let nextRequest=0;
@@ -36,6 +43,10 @@ parentPort!.on('message',async message=>{
     const request=waiting.get(message.requestId);if(!request)return;
     waiting.delete(message.requestId);if(message.error)request.reject(new Error(message.error));else request.resolve(message.result);return;
   }
+  if(message.kind==='tactical-response') {
+    const request=tactics.get(message.requestId);if(!request)return;
+    tactics.delete(message.requestId);if(message.error)request.reject(new Error(message.error));else request.resolve(message.result);return;
+  }
   if(message.kind==='preview-response') {
     const request=previews.get(message.requestId);if(!request)return;
     previews.delete(message.requestId);if(message.error)request.reject(new Error(message.error));else request.resolve(message.result);return;
@@ -47,8 +58,10 @@ parentPort!.on('message',async message=>{
   const {id,kind,state,actor,memory,horizons}=message as {id:number;kind:string;state:GameState;actor:string;memory?:ScriptMemory;horizons:number[]};
   if(kind==='plan'){useContexts=!!message.useContexts;roundToken=message.roundToken??'';}
   try {
-    const planner=state.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
-    const result=kind==='candidates'?candidateFacts(state,actor,true,message.limit,true):kind==='preview'?planningPreview(state,actor,message.actions,message.candidate):kind==='forecast'?economicForecast(state,actor,horizons,message.scenario):await planner(state,actor,memory,{forecast:async(state,actor,horizons,scenario?:ForecastScenario)=>new Promise((resolve,reject)=>{
+    const planner=state.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:state.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:state.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:state.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
+    const result=kind==='tactical'?(state.config.scriptStrategy==='adaptive-v4.12'?tacticalV412:state.config.scriptStrategy==='adaptive-v4.1'?tacticalV41:tacticalV4)(state,message.request):kind==='candidates'?candidateFacts(state,actor,true,message.limit,true):kind==='preview'?planningPreview(state,actor,message.actions,message.candidate):kind==='forecast'?economicForecast(state,actor,horizons,message.scenario):await planner(state,actor,memory,{tactical:async(state:GameState,request:TacticalRequestV4)=>new Promise<ReturnType<typeof tacticalV4>>((resolve,reject)=>{
+      const requestId=++nextRequest;tactics.set(requestId,{resolve,reject});sendRequest(requestId,'tactical-request',{state,request});
+    }),forecast:async(state,actor,horizons,scenario?:ForecastScenario)=>new Promise((resolve,reject)=>{
       const requestId=++nextRequest;waiting.set(requestId,{resolve,reject});sendRequest(requestId,'forecast-request',{state,actor,horizons,scenario});
     }),preview:async(state:GameState,actor:string,actions:import('../shared/types.js').Action[],candidate:import('./adaptive-types.js').ScriptCandidate)=>new Promise<ReturnType<typeof planningPreview>>((resolve,reject)=>{
       const requestId=++nextRequest;previews.set(requestId,{resolve,reject});sendRequest(requestId,'preview-request',{state,actor,actions,candidate});

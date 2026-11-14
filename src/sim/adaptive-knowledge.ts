@@ -28,6 +28,11 @@ export function scriptKnowledge(state: GameState, actor: string): GameState {
     const memory=own.intel[system.id], scan=own.militaryIntel?.[system.id];
     const known=ownLand?structuredClone(system):memory&&own.surveyed.includes(system.id)?structuredClone(memory.system):{id:system.id,name:system.name,position:structuredClone(system.position),neighbors:[...system.neighbors],gates:structuredClone(system.gates),ownerId:null,base:null,planets:[],projects:[]};
     if(!ownLand&&scan&&scan.day>=(memory?.day??-1)){known.ownerId=scan.ownerId;known.controllerId=scan.controllerId;known.base=structuredClone(scan.base);}
+    if(['adaptive-v4.1','adaptive-v4.12'].includes(state.config.scriptStrategy??'')&&!ownLand&&memory?.system.ownerId===actor) {
+      // Losing an owned asset is known to its former owner. Its new population and owner are not.
+      if(known.ownerId===actor){known.ownerId=null;known.base=null;delete known.controllerId;}
+      for(const planet of known.planets)if(planet.ownerId===actor)planet.ownerId=null;
+    }
     known.projects=structuredClone(system.projects.filter(project=>project.ownerId===actor));
     return known;
   });

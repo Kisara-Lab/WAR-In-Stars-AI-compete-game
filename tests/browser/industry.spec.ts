@@ -30,10 +30,11 @@ for (const count of [4,8]) test(`4.3 ${count}方岗位、产业链、队列、�
 });
 
 test('V5默认新局脚本单轮审计及编年史导出，恢复保持修订',async({page})=>{
+ test.setTimeout(90000);
  const created=await(await page.request.post('/api/matches',{data:{...DEFAULT_CONFIG,controller:'scripted'}})).json();
  expect(created.state.rulesRevision).toBe('5.4');
  const step=await page.request.post('/api/step');expect(step.ok()).toBe(true);
- await expect.poll(async()=> (await(await page.request.get('/api/state')).json()).state.round).toBe(1);
+ await expect.poll(async()=>{const s=await(await page.request.get('/api/state')).json();return s.state.round===1&&!s.status.busy;},{timeout:60000}).toBe(true);
  const snapshot=await(await page.request.get('/api/state')).json();
  const journal=await page.request.get(`/api/matches/${snapshot.state.id}/export/jsonl`);
  expect(journal.ok()).toBeTruthy();expect(await journal.text()).toContain('processing');

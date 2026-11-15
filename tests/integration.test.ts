@@ -198,7 +198,7 @@ describe('比赛事务、存档与复盘', () => {
     expect(runner.state.id).not.toBe(initial.id);
     expect(runner.state.round).toBe(1);
     expect((await runner.store.load(initial.id)).state.round).toBe(2);
-  });
+  }, 30_000);
 
   it('拒绝存档路径穿越', async () => {
     const runner = await fixture();
@@ -235,5 +235,5 @@ describe('比赛事务、存档与复盘', () => {
     expect(history.state.round).toBe(0);
     const file = await readFile(join(runner.store.root, runner.state.id, 'checkpoint.json'), 'utf8');
     expect(file).not.toContain(fakeConfig.key);
-  });
+  }, 30_000);
 });

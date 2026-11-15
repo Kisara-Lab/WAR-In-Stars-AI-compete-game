@@ -31,7 +31,7 @@ export function validateControllers(config: MatchConfig) {
   } else if (config.factionControllers !== undefined) throw new Error('逐势力控制器仅用于混合局');
   const modelIds = config.controller === 'mixed' ? ids.filter(id => factionController(config, id) === 'model') : ids;
   if (modelIds.some(id => !config.models[id]) || Object.keys(config.models).some(id => !modelIds.includes(id))) throw new Error('模型配置必须与模型席位一致');
-  if (config.controller === 'model' && config.scriptStrategy?.startsWith('adaptive-')) throw new Error('模型局不能配置智能脚本');
+  if (config.controller === 'model' && (config.scriptStrategy?.startsWith('adaptive-') || config.scriptStrategy?.startsWith('sras-'))) throw new Error('模型局不能配置智能脚本');
   if (config.scriptSearchProfile !== undefined && !['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(config.scriptStrategy??'')) throw new Error('搜索档位仅用于adaptive-v3/v4');
 }
 

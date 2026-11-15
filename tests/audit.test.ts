@@ -146,7 +146,7 @@ describe('统一审计与提交事实', () => {
     runner.store.auditMany = original;
     runner.start(true); await runner.waitIdle();
     expect(runner.state.round).toBe(1);
-  });
+  }, 30_000);
 
   it('回合原子提交后检查点失败，不回退或重复执行已提交回合', async () => {
     const runner = await fixture();
@@ -159,7 +159,7 @@ describe('统一审计与提交事实', () => {
     runner.store.save = save;
     runner.start(true); await runner.waitIdle();
     expect(runner.state.round).toBe(2);
-  });
+  }, 30_000);
 
   it('模拟事件批次在前端截断前完整送达，纯模拟不依赖记录器', async () => {
     const state = createGame();

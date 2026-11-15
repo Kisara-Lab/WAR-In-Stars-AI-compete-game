@@ -78,7 +78,7 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
     else if(config.scriptSearchProfile!==undefined)throw new Error('搜索档位仅用于adaptive-v3/v4');
     validateControllers(config);
     const scriptCount = config.factionIds.filter(id => factionController(config, id) === 'scripted').length;
-    const planning=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(config.scriptStrategy??'')?computeConfig(scriptCount,{computeWorkers,planningCacheMiB}):planningConfig(scriptCount,{planningWorkers,forecastWorkers});
+    const planning=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(config.scriptStrategy??'')?computeConfig(scriptCount,{computeWorkers,planningCacheMiB}):planningConfig(scriptCount,{planningWorkers,forecastWorkers:config.scriptStrategy?.startsWith('sras-')?0:forecastWorkers});
     await runner.create(config, workers,planning); response.json(runner.snapshot());
   });
   app.post('/api/start', (_request, response) => { runner.start(); response.json({ ok: true }); });

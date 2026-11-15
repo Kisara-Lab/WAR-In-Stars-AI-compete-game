@@ -50,7 +50,7 @@ export interface ScriptReport {
   projections?: {id:string;horizons:{days:number;resources:Record<string,number>;unity:number;population:number;shortageDays:number;unpaidDays:number}[];trajectory?:{day:number;unity:number;quality:number;welfare:number}[]}[];
 }
 export const scriptName = (config: {controller: string; scriptStrategy?: string}) => config.controller === 'mixed' ? 'AI VS 智能脚本' : config.controller !== 'scripted'
-  ? 'AI 模型对战' : config.scriptStrategy?.startsWith('adaptive-') ? '智能脚本 '+config.scriptStrategy : '旧脚本基线';
+  ? 'AI 模型对战' : config.scriptStrategy?.startsWith('adaptive-') || config.scriptStrategy?.startsWith('sras-') ? '智能脚本 '+config.scriptStrategy : '旧脚本基线';
 
 export const ADAPTIVE_V2 = {
   ...ADAPTIVE, version: 'adaptive-v2' as const, stageCache: 64, threadBudget: 16,

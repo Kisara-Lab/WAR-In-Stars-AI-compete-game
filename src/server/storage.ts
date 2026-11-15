@@ -212,7 +212,7 @@ export class MatchStore {
       try{const turn=await this.record(id,round);if(stateHash(turn.state)!==turn.hash)throw new Error('Committed round hash mismatch');if(turn.attemptId)committed.add(turn.attemptId);}
       catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
     }
-    return {coverage:total?'Verified audit journal':'Legacy snapshots only',total,matched,next:matched>page.length?page.at(-1)?.seq:null,records:page.map(record=>({...record,committed:record.attemptId?committed.has(record.attemptId):null}))};
+    return {coverage:total?'完整审计日志':'仅旧版快照',total,matched,next:matched>page.length?page.at(-1)?.seq:null,records:page.map(record=>({...record,committed:record.attemptId?committed.has(record.attemptId):null}))};
   }
 
   async exportAudit(id:string) {

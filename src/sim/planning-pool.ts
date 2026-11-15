@@ -21,6 +21,8 @@ import { planningPreview } from './planning-preview.js';
 import type { Action } from '../shared/types.js';
 import type { ScriptCandidate } from './adaptive-types.js';
 import { candidateFacts } from './adaptive-candidates.js';
+import { srasDecision } from './sras.js';
+import { srasDecision as sras11Decision } from './sras11.js';
 
 export interface PlanningConfig {planningWorkers?:number;forecastWorkers?:number;computeWorkers?:number;planningCacheMiB?:number;v3?:boolean}
 export function computeConfig(factions:number,requested:PlanningConfig={}) {
@@ -155,8 +157,8 @@ export class PlanningPool {
         const known=scriptKnowledge(state,actor),memory=structuredClone(state.factions[actor].scriptMemory);
         if(strategies?.[actor])known.config.scriptStrategy=strategies[actor] as GameState['config']['scriptStrategy'];
         known.factions[actor].scriptMemory=memory;
-        const planner=known.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:known.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:known.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:known.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
-        return this.planning?await this.planning.run({kind:'plan',state:known,actor,memory,roundToken:this.roundToken,useContexts:!!this.config.planningCacheMiB}) as Decision:planner(known,actor,memory,{forecast:this.forecast,preview:this.preview,candidates:this.candidates,tactical:this.tactical,checkpoint:async()=>{await new Promise<void>(resolve=>setImmediate(resolve));if(signal?.aborted)throw new Error('比赛已暂停');},inputAudit:async input=>{this.inputs.set(actor,input);}});
+        const planner=known.config.scriptStrategy==='sras-v1.1'?sras11Decision:known.config.scriptStrategy==='sras-v1'?srasDecision:known.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:known.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:known.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:known.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
+        return this.planning?await this.planning.run({kind:'plan',state:known,actor,memory,roundToken:this.roundToken,useContexts:!!this.config.planningCacheMiB}) as Decision:planner(known,actor,memory,{forecast:this.forecast,preview:this.preview,candidates:this.candidates,tactical:this.tactical,checkpoint:async()=>{await new Promise<void>(resolve=>setImmediate(resolve));if(signal?.aborted)throw new Error('比赛已暂停');},inputAudit:async (input:unknown)=>{this.inputs.set(actor,input);}});
       });
       const decisions=await Promise.all(jobs);
       if(signal?.aborted)throw new Error('比赛已暂停');

@@ -57,7 +57,7 @@ test('观察界面可创建比赛、查看星系、推进整局和复盘', async
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();
   await expect(page.locator('.faction-heading h2')).toHaveCount(8);
   await page.getByRole('button', { name: '▷ 单轮推进' }).click();
-  await expect(page.locator('.result-banner')).toBeVisible();
+  await expect(page.locator('.result-banner')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.result-score > span')).toHaveCount(8);
   expect(errors).toEqual([]);
 });

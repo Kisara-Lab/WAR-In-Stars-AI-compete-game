@@ -1,3 +1,5 @@
+> **SRAS V1 independent side branch**: [rules, local setup and merge notes](docs/SRAS.md). Baseline: `sras-baseline-20261115`; no model calls in SRAS. Existing strategy defaults are unchanged.
+
 <div align="center">
 
 ## AI VS 智能脚本
@@ -291,3 +293,32 @@ docs/           当前规则、历史修订、案例与开发说明
 [MIT](LICENSE) · © 2026 Kisara-Lab contributors。欢迎使用、修改、研究与二次开发，保留许可与版权声明即可。
 
 如果你也想看 AI 在星海中展开一场有来有往的文明竞赛，欢迎 **Star、Fork，或带着你的模型开一局**。
+
+## SRAS rules-5 本地支线
+
+本支线新增危机兜底、同轮动作冲突拦截、按需防御、产能恢复及任务证据面板。选择 `sras-v1` 即使用当前纯规则修订，不提供搜索档位，不调用模型。48动作和128次预演上限不变；线程数不影响决策。旧比赛不续跑新修订。[规则、缺陷与验证说明](docs/sras-rules5.md)。
+
+
+## SRAS V1.1
+
+??????? `sras-v1.1`????????????????????????????????????????????????V1?V4.1?
+
+Independent deterministic task rules: actionable fallback, funded production and fleet needs, fixed campaign rosters, recovery and settlement. Inaccessible welfare is distinguished from unaffordable welfare. V1 and V4.1 remain available.
+
+Select SRAS V1.1 in the new-match script selector; pure-script seats make zero model requests. There is no search profile. A minimal configuration patch is:
+
+```json
+{"controller":"scripted","scriptStrategy":"sras-v1.1"}
+```
+
+Apply it to the normal match defaults and omit `scriptSearchProfile`. Creation remains paused. Start from the UI. Do not resume old V1 observations under the new version. Model seats in mixed matches retain their actual model costs.
+
+[????????????? / Rules, evidence and limits](docs/sras11.md). The sole new frozen observation uses port 8793 (8794 if occupied), SRAS V1.1 versus V4.1, and no model credentials. Passing mechanism tests does not establish superior playing strength.
+
+SRAS V1.1 observation status: the sole frozen match stopped at committed round 21 after a planning error. Revision `rules-1.1-2` fixes the reproduced error; no second match was run. [Validation and interrupted observation / ???????](docs/sras11-observation.md). No superiority claim is supported.
+
+## SRAS V1.1 对 grok-4.7：真实胜局展示
+
+在独立的 `stars-2026`、24星系、120轮、5.4规则四方自由竞争中，翠星使用 SRAS V1.1，苍蓝使用 `grok-4.7`。最终翠星以 `12189` 分、12个星系排名第一；苍蓝以 `9504` 分、9个星系排名第二，差距 `2685` 分（约 `28.25%`）。关键节点包括第41轮夺取暮影母星、第75轮淘汰暮影、第104轮收复关键星系，以及第120轮终局。
+
+这是一次真实单场结果，不代表SRAS普遍强于大模型。对局也暴露了空计划、治理下降、迟到增援和低价值调动等问题；完整脱敏战报见 [SRAS V1.1胜局与限制](docs/sras11-vs-grok-case.md)。原始存档、模型请求和密钥不纳入仓库。

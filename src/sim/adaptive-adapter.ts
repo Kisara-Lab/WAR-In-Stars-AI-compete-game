@@ -1,4 +1,6 @@
 import { reconcileWarV412 } from './adaptive-v412-memory.js';
+import { reconcileSras } from './sras-feedback.js';
+import { reconcileSras as reconcileSras11 } from './sras11-feedback.js';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
 import { ADAPTIVE } from '../shared/adaptive.js';
@@ -150,6 +152,8 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
   for(const [actor,decision] of Object.entries(decisions)) {
     if(!decision.scriptMemory)continue;
     const memory=structuredClone(decision.scriptMemory);
+    reconcileSras(state,actor,memory,decision);
+    reconcileSras11(state,actor,memory,decision);
     reconcileWarV41(state,actor,memory);
     reconcileWarV412(state,actor,memory);
     const alive=new Set(state.fleets.filter(fleet=>fleet.ownerId===actor).map(fleet=>fleet.id));

@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs';
 import { V54, emergencyRules } from '../shared/emergency.js';
 import { controllerLabel } from '../shared/controllers.js';
 import { governed, governanceView, V53 } from '../shared/governance.js';
@@ -72,7 +73,7 @@ export class MatchStore {
   }
   async audit(id: string, input: AuditInput) { return this.journal(id).append(input); }
   async auditMany(id: string, inputs: AuditInput[]) { return this.journal(id).appendMany(inputs); }
-  async auditRecords(id: string) { return this.journals.has(id) ? this.journals.get(id)!.read() : readJournal(join(this.directory(id), 'audit.jsonl')); }
+  async auditRecords(id: string, include?: (record:AuditRecord)=>boolean) { return this.journals.has(id) ? this.journals.get(id)!.read(include) : readJournal(join(this.directory(id), 'audit.jsonl'),include); }
   constructor(root = '.data/matches', readonly sessionFile?: string) { this.root = resolve(root); }
 
   async sessionCheckpoint() {
@@ -149,7 +150,7 @@ export class MatchStore {
         const record = JSON.parse(await readFile(join(directory, latest), 'utf8')) as TurnRecord;
         value = { version: record.state.version, state: record.state, hash: record.hash, lastDecisions: record.decisions, metrics: record.metrics ?? cache?.metrics ?? {} };
       } else value = JSON.parse(await readFile(join(directory, 'initial.json'), 'utf8'));
-      const logs = await this.auditRecords(id);
+      const logs = await this.auditRecords(id,record=>record.category==='round.prepared');
       for (const file of files) {
         const record = JSON.parse(await readFile(join(directory, file), 'utf8')) as TurnRecord;
         if (record.hash !== stateHash(record.state)) throw new Error(`存档状态哈希不一致：${file}`);
@@ -198,26 +199,43 @@ export class MatchStore {
   }
 
   async queryAudit(id: string, filter: { after?: number; limit?: number; factionId?: string; systemId?: string; category?: string; attemptId?: string; fromDay?: number; toDay?: number } = {}) {
-    const records = await this.auditRecords(id);
-    const turns = await this.committedRecords(id);
-    const committed = new Set(turns.map(turn => turn.attemptId));
-    const selected = records.filter(record => record.seq > (filter.after ?? 0) && (!filter.factionId || record.factionId === filter.factionId || (record.data as { audience?: string[] })?.audience?.includes(filter.factionId)) && (!filter.systemId || record.systemId === filter.systemId) && (!filter.category || record.category.startsWith(filter.category)) && (!filter.attemptId || record.attemptId === filter.attemptId) && (filter.fromDay === undefined || record.day >= filter.fromDay) && (filter.toDay === undefined || record.day <= filter.toDay));
-    const page = selected.slice(0, Math.min(200, Math.max(1, filter.limit ?? 50)));
-    return { coverage: records.length ? '完整审计：公开输入输出；事实以原子回合文件为准' : '旧存档：只有逐轮快照和保留的事件，原始请求及截断事件缺失', total: records.length, matched: selected.length, next: selected.length > page.length ? page.at(-1)?.seq : null, records: page.map(record => ({ ...record, committed: record.attemptId ? committed.has(record.attemptId) : null })) };
+    let total=0,matched=0;
+    const page:AuditRecord[]=[];
+    await this.auditRecords(id,record=>{
+      total++;
+      if(record.seq <= (filter.after??0) || filter.factionId && record.factionId!==filter.factionId && !(record.data as {audience?:string[]})?.audience?.includes(filter.factionId) || filter.systemId && record.systemId!==filter.systemId || filter.category && !record.category.startsWith(filter.category) || filter.attemptId && record.attemptId!==filter.attemptId || filter.fromDay!==undefined && record.day<filter.fromDay || filter.toDay!==undefined && record.day>filter.toDay)return false;
+      matched++;if(page.length<Math.min(200,Math.max(1,filter.limit??50)))page.push(record);return false;
+    });
+    const committed=new Set<string>();
+    for(const round of new Set(page.filter(r=>r.attemptId).map(r=>r.round))){
+      if(round<1)continue;
+      try{const turn=await this.record(id,round);if(stateHash(turn.state)!==turn.hash)throw new Error('Committed round hash mismatch');if(turn.attemptId)committed.add(turn.attemptId);}
+      catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+    }
+    return {coverage:total?'完整审计日志':'仅旧版快照',total,matched,next:matched>page.length?page.at(-1)?.seq:null,records:page.map(record=>({...record,committed:record.attemptId?committed.has(record.attemptId):null}))};
   }
 
-  async exportAudit(id: string) {
-    const records = await this.auditRecords(id);
-    if (records.length) return records.map(record => JSON.stringify(record)).join('\n') + '\n';
-    const turns = await this.committedRecords(id);
-    return [{ category: 'legacy.coverage', data: '旧档仅含快照；缺失原始请求及完整事件，不补造历史' }, ...turns.map(turn => ({ category: 'legacy.round', data: sanitize(turn) }))].map(record => JSON.stringify(record)).join('\n') + '\n';
+  async exportAudit(id:string) {
+    // Compatibility for small programmatic callers. HTTP uses bounded streaming.
+    const chunks:string[]=[];let bytes=0;
+    for await(const chunk of this.exportAuditChunks(id)){bytes+=chunk.length;if(bytes>64*1024*1024)throw new Error('Use streaming audit export for journals over 64 MiB');chunks.push(chunk);}
+    return chunks.join('');
+  }
+  async *exportAuditChunks(id:string) {
+    await this.auditRecords(id,()=>false); // verify chain before sending any bytes
+    const path=join(this.directory(id),'audit.jsonl');
+    try {for await(const chunk of createReadStream(path,{encoding:'utf8'}))yield String(chunk);}
+    catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
+      yield JSON.stringify({category:'legacy.coverage',data:'Snapshots only; original requests unavailable'})+'\n';
+      for(const file of (await readdir(this.directory(id))).filter(f=>/^round-\d{4}\.json$/.test(f)).sort())yield JSON.stringify({category:'legacy.round',data:sanitize(JSON.parse(await readFile(join(this.directory(id),file),'utf8')))})+'\n';
+    }
   }
 
   async exportChronicle(id: string) {
     const initial = JSON.parse(await readFile(join(this.directory(id), 'initial.json'), 'utf8')) as Checkpoint & { hash?: string };
     if (initial.hash && initial.hash !== stateHash(initial.state)) throw new Error('初始状态哈希不一致');
     const turns = await this.committedRecords(id);
-    const logs = await this.auditRecords(id);
+    const logs = await this.auditRecords(id,record=>record.category.startsWith('event.')||['match.initial','decision.completed','attempt.started','attempt.aborted','model.failure'].includes(record.category));
     const committed = new Set(turns.map(turn => turn.attemptId));
     const lines = [`# WAR In Stars 编年史`, '', `比赛：${id}；种子：${initial.state.config.seed}；规则版本：${initial.state.version} / 修订 ${initial.state.rulesRevision ?? '原版'}`, '', logs.length ? '记录范围：本分支开局至最近提交回合。模型公开说明为当时意图，游戏事件为结算事实。序号对应 audit.jsonl。' : '记录范围：旧版逐轮快照。原始模型请求、失败尝试与被截断事件缺失，无法补还。', ''];
     if (initial.state.lineage) lines.push(`历史来源：${initial.state.lineage.matchId}，第${initial.state.lineage.round}轮，状态哈希 ${initial.state.lineage.hash}`, '');

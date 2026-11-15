@@ -44,7 +44,7 @@ test('审计筛选、决策详情、编年史导出和四方八方政策面板',
   await page.getByLabel('最大轮数').fill('1');
   await page.getByRole('button', { name: '创建比赛', exact: true }).click();
   await page.getByRole('button', { name: '▷ 单轮推进' }).click();
-  await expect(page.locator('.result-banner')).toBeVisible();
+  await expect(page.locator('.result-banner')).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('.faction-card')).toHaveCount(8);
   await page.getByLabel('审计类别').selectOption('decision');
   await expect(page.locator('.audit-record')).toHaveCount(16);

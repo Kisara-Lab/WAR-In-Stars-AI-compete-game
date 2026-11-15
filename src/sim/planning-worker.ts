@@ -10,6 +10,8 @@ import { tacticalV4, type TacticalRequestV4 } from './adaptive-v4-military.js';
 import type { ForecastScenario } from './forecast-v3.js';
 import { planningPreview } from './planning-preview.js';
 import { candidateFacts } from './adaptive-candidates.js';
+import { srasDecision } from './sras.js';
+import { srasDecision as sras11Decision } from './sras11.js';
 import { economicForecast } from './forecast.js';
 import type { GameState } from '../shared/types.js';
 import type { ScriptMemory } from '../shared/adaptive.js';
@@ -58,16 +60,16 @@ parentPort!.on('message',async message=>{
   const {id,kind,state,actor,memory,horizons}=message as {id:number;kind:string;state:GameState;actor:string;memory?:ScriptMemory;horizons:number[]};
   if(kind==='plan'){useContexts=!!message.useContexts;roundToken=message.roundToken??'';}
   try {
-    const planner=state.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:state.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:state.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:state.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
+    const planner=state.config.scriptStrategy==='sras-v1.1'?sras11Decision:state.config.scriptStrategy==='sras-v1'?srasDecision:state.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:state.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:state.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:state.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
     const result=kind==='tactical'?(state.config.scriptStrategy==='adaptive-v4.12'?tacticalV412:state.config.scriptStrategy==='adaptive-v4.1'?tacticalV41:tacticalV4)(state,message.request):kind==='candidates'?candidateFacts(state,actor,true,message.limit,true):kind==='preview'?planningPreview(state,actor,message.actions,message.candidate):kind==='forecast'?economicForecast(state,actor,horizons,message.scenario):await planner(state,actor,memory,{tactical:async(state:GameState,request:TacticalRequestV4)=>new Promise<ReturnType<typeof tacticalV4>>((resolve,reject)=>{
       const requestId=++nextRequest;tactics.set(requestId,{resolve,reject});sendRequest(requestId,'tactical-request',{state,request});
-    }),forecast:async(state,actor,horizons,scenario?:ForecastScenario)=>new Promise((resolve,reject)=>{
+    }),forecast:async(state:GameState,actor:string,horizons:number[],scenario?:ForecastScenario)=>new Promise((resolve,reject)=>{
       const requestId=++nextRequest;waiting.set(requestId,{resolve,reject});sendRequest(requestId,'forecast-request',{state,actor,horizons,scenario});
     }),preview:async(state:GameState,actor:string,actions:import('../shared/types.js').Action[],candidate:import('./adaptive-types.js').ScriptCandidate)=>new Promise<ReturnType<typeof planningPreview>>((resolve,reject)=>{
       const requestId=++nextRequest;previews.set(requestId,{resolve,reject});sendRequest(requestId,'preview-request',{state,actor,actions,candidate});
     }),candidates:async(state:GameState,actor:string,limit:number)=>new Promise<ReturnType<typeof candidateFacts>>((resolve,reject)=>{
       const requestId=++nextRequest;candidateRequests.set(requestId,{resolve,reject});sendRequest(requestId,'candidates-request',{state,actor,limit});
-    }),inputAudit:async input=>{parentPort!.postMessage({kind:'input',id,input,actor,roundToken});}});
+    }),inputAudit:async (input:unknown)=>{parentPort!.postMessage({kind:'input',id,input,actor,roundToken});}});
     parentPort!.postMessage({kind:'result',id,result});
   } catch(error) {parentPort!.postMessage({kind:'result',id,error:error instanceof Error?error.message:String(error)});}
 });

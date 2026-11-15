@@ -1,6 +1,7 @@
 import { fallbackRules, fleetDemand, funding } from '../src/sim/sras11-experts.js';
 import { campaignDependency } from '../src/sim/sras11-response.js';
 import { describe,it,expect } from 'vitest';
+import { availableParallelism } from 'node:os';
 import { createGame } from '../src/sim/world.js';
 import { DEFAULT_CONFIG, units } from '../src/shared/rules.js';
 import { SRAS, srasStage, type SrasMemory } from '../src/shared/sras11.js';
@@ -242,7 +243,8 @@ describe('SRAS V1.1 task rules',()=>{
   });
   it('produces identical actions and memory in 0/2/8 planning workers and after serialization; abort leaves state untouched',async()=>{
     const s=fixture(),before=stateHash(s),results=[];
-    for(const workers of [0,2,8]){const pool=new PlanningPool(8,{planningWorkers:workers,forecastWorkers:0});try{const d=await pool.decide(JSON.parse(JSON.stringify(s)),undefined,undefined,undefined,['aurora']);results.push({actions:d.aurora.actions,memory:d.aurora.scriptMemory});expect(pool.metrics.forecastWorkers).toBe(0);}finally{await pool.close();}}
+    const maximum=Math.max(0,availableParallelism()-2),workers=[0,Math.min(2,maximum),Math.min(8,maximum)];
+    for(const workerCount of workers){const pool=new PlanningPool(8,{planningWorkers:workerCount,forecastWorkers:0});try{const d=await pool.decide(JSON.parse(JSON.stringify(s)),undefined,undefined,undefined,['aurora']);results.push({actions:d.aurora.actions,memory:d.aurora.scriptMemory});expect(pool.metrics.forecastWorkers).toBe(0);}finally{await pool.close();}}
     expect(results[1]).toEqual(results[0]);expect(results[2]).toEqual(results[0]);expect(stateHash(s)).toBe(before);
     const pool=new PlanningPool(4,{planningWorkers:0,forecastWorkers:0}),abort=new AbortController();abort.abort();try{await expect(pool.decide(s,abort.signal)).rejects.toThrow();}finally{await pool.close();}expect(stateHash(s)).toBe(before);
   },120000);

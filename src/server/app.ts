@@ -1,4 +1,6 @@
 import { ADAPTIVE_V412 } from '../shared/adaptive-v412.js';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { SRAS } from '../shared/sras.js';
 import { SRAS as SRAS11 } from '../shared/sras11.js';
 import { ADAPTIVE_V41 } from '../shared/adaptive-v41.js';
@@ -105,7 +107,28 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
   });
   app.get('/api/matches/:id/export/:format', async (request, response) => {
     const format = z.enum(['markdown', 'jsonl']).parse(request.params.format);
-    const body = format === 'markdown' ? await runner.store.exportChronicle(request.params.id) : await runner.store.exportAudit(request.params.id);
+    const full = request.query.full === '1' || request.query.full === 'true';
+    if(format === 'jsonl') {
+      response.setHeader('Content-Disposition', `attachment; filename="${request.params.id}.${full ? 'full.' : ''}jsonl"`);
+      response.type('application/x-ndjson');
+      try {
+        const chunks = runner.store.exportAuditChunks(request.params.id, !full);
+        const first = await chunks.next();
+        const output = async function* () {
+          try { if(!first.done) yield first.value; yield* chunks; }
+          finally { await chunks.return(); }
+        };
+        await pipeline(Readable.from(output()), response);
+      } catch(error) {
+        if(response.headersSent) response.destroy(error instanceof Error ? error : new Error('Audit export interrupted'));
+        else {
+          response.removeHeader('Content-Disposition');
+          response.status(500).json({ error: error instanceof Error ? error.message : 'Audit export failed' });
+        }
+      }
+      return;
+    }
+    const body = await runner.store.exportChronicle(request.params.id);
     response.setHeader('Content-Disposition', `attachment; filename="${request.params.id}.${format === 'markdown' ? 'md' : 'jsonl'}"`);
     response.type(format === 'markdown' ? 'text/markdown' : 'application/x-ndjson').send(body);
   });

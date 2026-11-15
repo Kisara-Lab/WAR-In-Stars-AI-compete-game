@@ -28,7 +28,7 @@ test('审计筛选、决策详情、编年史导出和四方八方政策面板',
   await expect(page.locator('.audit-record')).toHaveCount(2);
   await page.getByLabel('审计类别').selectOption('economy');
   await expect(page.locator('.audit-record')).toHaveCount(10);
-  for (const [label, extension] of [['导出编年史 Markdown', '.md'], ['导出审计 JSONL', '.jsonl']]) {
+  for (const [label, extension] of [['导出编年史 Markdown', '.md'], ['导出精简审计 JSONL', '.jsonl']]) {
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('link', { name: label }).click();
     const download = await downloadPromise;

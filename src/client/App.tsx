@@ -131,6 +131,13 @@ export function App() {
     return () => { closed = true; clearTimeout(retry); socketRef.current?.close(); };
   }, []);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 4000); return () => clearTimeout(timer); }, [notice]);
+  useEffect(() => {
+    if (modal !== 'settings') return;
+    const selector = Array.from(document.querySelectorAll('select')).find(element => element.value === 'adaptive-v4.12' || element.value === 'legacy');
+    if (!selector || Array.from(selector.options).some(option => option.value === 'sras-v1.1')) return;
+    selector.add(new Option('纯规则脚本 SRAS V1.1', 'sras-v1.1'), selector.options[2] ?? null);
+    selector.add(new Option('纯规则脚本 SRAS V1', 'sras-v1'), selector.options[3] ?? null);
+  }, [modal]);
 
   async function perform(action: () => Promise<void>) {
     setError(''); setPending(true);

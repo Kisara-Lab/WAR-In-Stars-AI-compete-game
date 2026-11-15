@@ -33,6 +33,22 @@ const completed = () => response([
 ], { input_tokens: 11, output_tokens: 12, total_tokens: 23 });
 
 describe('统一审计与提交事实', () => {
+  it('exports a stable journal boundary while new records are appended', async () => {
+    const runner = await fixture();
+    const before = await runner.store.exportAudit(runner.state.id, false);
+    for(const compact of [true, false]) {
+      const stream = runner.store.exportAuditChunks(runner.state.id, compact);
+      const expected = await runner.store.exportAudit(runner.state.id, compact);
+      const first = await stream.next();
+      await runner.store.audit(runner.state.id, { category: 'runtime.save', day: 0, round: 0, data: { compact } });
+      let exported = first.value ?? '';
+      for await(const chunk of stream) exported += chunk;
+      expect(exported).toBe(expected);
+    }
+    expect(await runner.store.exportAudit(runner.state.id, false)).not.toBe(before);
+    const missing = runner.store.exportAuditChunks('missing-match');
+    await expect(missing.next()).rejects.toThrow();
+  });
   it('compact export removes only adaptive report projections and preserves all record categories', async () => {
     const runner = await fixture();
     const data = { systems: [{ id: 's0', neighbors: ['s1'], position: { x: 10, y: 20 } }], forecasts: 8, projections: ['map-data'], actions: [{ type: 'move_fleet', args: { systemId: 's1' } }], scriptReport: { version: 'adaptive-v4.12', projections: [{ horizons: [100, 300] }], candidates: 12, alternatives: [{ id: 'candidate' }], previews: ['preserved'] } };

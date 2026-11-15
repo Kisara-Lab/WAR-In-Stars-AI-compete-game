@@ -74,4 +74,19 @@ export class AuditJournal {
     return operation;
   }
   async flush() { await this.queue; }
+  snapshotSize(): Promise<number | null> {
+    const operation = this.queue.then(async () => {
+      await readJournal(this.path, () => false);
+      let handle;
+      try {
+        handle = await open(this.path, 'r');
+        return (await handle.stat()).size;
+      } catch(error) {
+        if((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw error;
+      } finally { await handle?.close(); }
+    });
+    this.queue = operation;
+    return operation;
+  }
 }

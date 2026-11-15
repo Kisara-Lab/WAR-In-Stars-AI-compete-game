@@ -16,11 +16,13 @@ import { POLICIES } from '../shared/civil.js';
 import { V4, WAR_NAMES } from '../shared/v4.js';
 
 function compactAuditValue(value: unknown, field = ''): unknown {
-  if (Array.isArray(value)) return value.map(item => compactAuditValue(item));
+  if (Array.isArray(value)) { for(const item of value) compactAuditValue(item); return value; }
   if (!value || typeof value !== 'object') return value;
   const record = value as Record<string, unknown>;
   const scriptReport = field === 'scriptReport' && typeof record.version === 'string' && record.version.startsWith('adaptive-');
-  return Object.fromEntries(Object.entries(record).filter(([key]) => !(scriptReport && key === 'projections')).map(([key, item]) => [key, compactAuditValue(item, key)]));
+  if(scriptReport) delete record.projections;
+  for(const key of Object.keys(record)) compactAuditValue(record[key], key);
+  return record;
 }
 function compactAuditRecord(record: Record<string, unknown>): Record<string, unknown> {
   return { ...record, data: compactAuditValue(record.data) };
@@ -234,16 +236,19 @@ export class MatchStore {
     return chunks.join('');
   }
   async *exportAuditChunks(id:string, compact = true) {
-    await this.auditRecords(id,()=>false); // verify chain before sending any bytes
+    const size = await this.journal(id).snapshotSize();
     const path=join(this.directory(id),'audit.jsonl');
-    try {
-      if(!compact){for await(const chunk of createReadStream(path,{encoding:'utf8'}))yield String(chunk);return;}
-      const lines = createInterface({input:createReadStream(path,{encoding:'utf8'}),crlfDelay:Infinity});
-      for await(const line of lines){if(!line)continue;try{const record=compactAuditRecord(JSON.parse(line));if(record)yield JSON.stringify(record)+'\n';}catch{yield line+'\n';}}
-    }
-    catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
+    if(size !== null) {
+      if(!size) return;
+      const stream=createReadStream(path,{encoding:'utf8',end:size-1});
+      if(!compact){try {for await(const chunk of stream)yield String(chunk);} finally {stream.destroy();} return;}
+      const lines = createInterface({input:stream,crlfDelay:Infinity});
+      try {for await(const line of lines){if(line)yield JSON.stringify(compactAuditRecord(JSON.parse(line)))+'\n';}}
+      finally {lines.close();stream.destroy();}
+    } else {
+      const files = (await readdir(this.directory(id))).filter(f=>/^round-\d{4}\.json$/.test(f)).sort();
       yield JSON.stringify({category:'legacy.coverage',data:'Snapshots only; original requests unavailable'})+'\n';
-      for(const file of (await readdir(this.directory(id))).filter(f=>/^round-\d{4}\.json$/.test(f)).sort()){
+      for(const file of files){
         const data=sanitize(JSON.parse(await readFile(join(this.directory(id),file),'utf8')));
         yield JSON.stringify({category:'legacy.round',data:compact?compactAuditValue(data):data})+'\n';
       }

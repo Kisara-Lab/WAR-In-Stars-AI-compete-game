@@ -36,6 +36,10 @@ export function situation(s:GameState,a:string) {
 }
 export function conflictKeys(action:Action):string[] {
   const x=action.args;
+  if(['confirm_contact','declare_war','enforce_peace','propose_peace','accept_peace','reject_peace','withdraw_peace','open_borders','close_borders'].includes(action.type)) {
+    const category=['open_borders','close_borders'].includes(action.type)?'access':'relation';
+    return [`diplomacy:${String(x.factionId)}:${category}`];
+  }
   if(action.type==='set_structure_status'||action.type==='scrap_structure')return ['structure:'+x.structureId];
   if(action.type==='set_jobs')return ['jobs:'+x.planetId+':'+x.structureType];
   if(action.type==='set_welfare'||action.type==='choose_policy')return [action.type];

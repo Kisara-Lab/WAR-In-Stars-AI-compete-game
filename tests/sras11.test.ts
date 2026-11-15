@@ -81,6 +81,12 @@ describe('SRAS V1.1 task rules',()=>{
     const cancelled=intentKeys(stage.draft,{type:'cancel_order',args:{projectId:q.id}});
     expect(intentKeys(stage.draft,{type:'queue_ships',args:{planetId:p.id,shipType:'destroyer',count:1}}).some(k=>cancelled.includes(k))).toBe(true);
   });
+  it('locks duplicate diplomatic intents before accepted-prefix replay',()=>{
+    const relation={type:'declare_war',args:{factionId:'umbra'}} as const;
+    const access={type:'open_borders',args:{factionId:'umbra'}} as const;
+    expect(conflictKeys(relation)).toEqual(conflictKeys({type:'propose_peace',args:{factionId:'umbra'}}));
+    expect(conflictKeys(relation)).not.toEqual(conflictKeys(access));
+  });
   it('never seals/restarts or reprioritizes the same object twice in a crisis turn',async()=>{
     const s=fixture();s.factions.aurora.resources.energy=0;s.factions.aurora.resources.food=0;s.factions.aurora.shortages.energy=true;
     const d=await srasDecision(scriptKnowledge(s,'aurora'),'aurora',undefined);

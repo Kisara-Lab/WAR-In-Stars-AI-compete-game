@@ -18,9 +18,9 @@ export function validateControllers(config: MatchConfig) {
   if (new Set(ids).size !== ids.length) throw new Error('势力清单不能重复');
   if (config.scriptStrategies !== undefined) {
     const strategies = config.scriptStrategies;
-    if (config.controller !== 'scripted' || !['adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'].includes(config.scriptStrategy ?? '') ||
+    if (config.controller !== 'scripted' || !['adaptive-v2', 'adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'].includes(config.scriptStrategy ?? '') ||
         Object.keys(strategies).length !== ids.length || Object.keys(strategies).some(id => !ids.includes(id)) ||
-        ids.some(id => !['adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'].includes(strategies[id]))) {
+        ids.some(id => !['adaptive-v2', 'adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'].includes(strategies[id]))) {
       throw new Error('脚本对照仅支持纯脚本V4.1/V4.12，策略席位必须完整且与势力清单一致');
     }
   }

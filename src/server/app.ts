@@ -36,7 +36,7 @@ const matchSchema = z.strictObject({
   controller: z.enum(['model', 'scripted', 'mixed']),
   factionControllers: z.record(z.string(), z.enum(['model', 'scripted'])).optional(),
   scriptStrategy: z.enum(['legacy','adaptive-v1','adaptive-v2','adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','sras-v1','sras-v1.1']).optional(),
-  scriptStrategies: z.record(z.string(), z.enum(['adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'])).optional(),
+  scriptStrategies: z.record(z.string(), z.enum(['adaptive-v2', 'adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'])).optional(),
   scriptSearchProfile:z.enum(['standard','deep']).optional(),
   computeWorkers:z.number().int().min(0).max(64).optional(),
   planningCacheMiB:z.number().int().min(0).max(1048576).optional(),

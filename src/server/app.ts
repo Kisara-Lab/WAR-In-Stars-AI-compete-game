@@ -109,8 +109,16 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
     if(format === 'jsonl') {
       response.setHeader('Content-Disposition', `attachment; filename="${request.params.id}.${full ? 'full.' : ''}jsonl"`);
       response.type('application/x-ndjson');
-      for await(const chunk of runner.store.exportAuditChunks(request.params.id, !full)) response.write(chunk);
-      response.end();
+      try {
+        for await(const chunk of runner.store.exportAuditChunks(request.params.id, !full)) response.write(chunk);
+        response.end();
+      } catch(error) {
+        if(response.headersSent) response.destroy(error instanceof Error ? error : new Error('Audit export interrupted'));
+        else {
+          response.removeHeader('Content-Disposition');
+          response.status(500).json({ error: error instanceof Error ? error.message : 'Audit export failed' });
+        }
+      }
       return;
     }
     const body = await runner.store.exportChronicle(request.params.id);

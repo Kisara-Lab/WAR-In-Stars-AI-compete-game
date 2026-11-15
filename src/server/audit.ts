@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import { open, readFile } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 
 const secrets = new Set<string>();
 export function registerSecret(secret: string) { if (secret) secrets.add(secret); }
@@ -23,18 +25,18 @@ export interface AuditRecord extends AuditInput { seq: number; time: string; pre
 export type AuditCallback = (category: string, data: unknown) => Promise<void>;
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
-export async function readJournal(path: string): Promise<AuditRecord[]> {
-  let content: string;
-  try { content = await readFile(path, 'utf8'); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
-  if (content && !content.endsWith('\n')) throw new Error('审计日志尾部不完整，请保留文件检查；比赛已停止');
-  let previousHash = '';
-  return content.split('\n').filter(Boolean).map((line, index) => {
-    const record = JSON.parse(line) as AuditRecord;
-    const { hash, ...body } = record;
-    if (record.seq !== index + 1 || record.previousHash !== previousHash || digest(body) !== hash) throw new Error(`审计日志哈希链损坏，序号 ${index + 1}`);
-    previousHash = hash;
-    return record;
-  });
+export async function readJournal(path: string, include: (record:AuditRecord)=>boolean = ()=>true): Promise<AuditRecord[]> {
+  let size=0;
+  try {const handle=await open(path,'r');try{size=(await handle.stat()).size;if(size){const tail=Buffer.alloc(1);await handle.read(tail,0,1,size-1);if(tail[0]!==10)throw new Error('审计日志尾部不完整，请保留文件检查；比赛已停止');}}finally{await handle.close();}}
+  catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return [];throw error;}
+  if(!size)return [];
+  const stream=createReadStream(path,{encoding:'utf8',end:size-1}),lines=createInterface({input:stream,crlfDelay:Infinity}),records:AuditRecord[]=[];
+  let previousHash='',seq=0;
+  try{for await(const line of lines){if(!line)continue;const record=JSON.parse(line) as AuditRecord;const {hash,...body}=record;
+    if(record.seq!==++seq||record.previousHash!==previousHash||digest(body)!==hash)throw new Error(`审计日志哈希链损坏，序号 ${seq}`);
+    previousHash=hash;if(include(record))records.push(record);
+  }}finally{lines.close();stream.destroy();}
+  return records;
 }
 
 export class AuditJournal {
@@ -47,8 +49,8 @@ export class AuditJournal {
   appendMany(inputs: AuditInput[]): Promise<AuditRecord[]> {
     const operation = this.queue.then(async () => {
       if (!this.initialized) {
-        const records = await readJournal(this.path);
-        this.seq = records.length; this.hash = records.at(-1)?.hash ?? ''; this.initialized = true;
+        let last:AuditRecord|undefined;await readJournal(this.path,record=>{last=record;return false;});
+        this.seq = last?.seq??0; this.hash = last?.hash ?? ''; this.initialized = true;
       }
       let sequence = this.seq;
       let previousHash = this.hash;
@@ -66,8 +68,8 @@ export class AuditJournal {
     this.queue = operation;
     return operation;
   }
-  read(): Promise<AuditRecord[]> {
-    const operation = this.queue.then(() => readJournal(this.path));
+  read(include?: (record:AuditRecord)=>boolean): Promise<AuditRecord[]> {
+    const operation = this.queue.then(() => readJournal(this.path,include));
     this.queue = operation;
     return operation;
   }

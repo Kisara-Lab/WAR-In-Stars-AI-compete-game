@@ -1,0 +1,11 @@
+{
+  "seed": "stars-2026",
+  "systemCount": 24,
+  "maxRounds": 120,
+  "factionIds": ["aurora", "umbra", "verdant", "cobalt"],
+  "controller": "scripted",
+  "scriptStrategy": "sras-v1",
+  "models": {"aurora":"unused","umbra":"unused","verdant":"unused","cobalt":"unused"},
+  "planningWorkers": 4,
+  "forecastWorkers": 0
+}

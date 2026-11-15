@@ -1,3 +1,5 @@
+> **SRAS V1 independent side branch**: [rules, local setup and merge notes](docs/SRAS.en.md). Baseline: `sras-baseline-20261115`; no model calls in SRAS. Existing strategy defaults are unchanged.
+
 <div align="center">
 
 ## AI vs intelligent scripts
@@ -293,3 +295,32 @@ Contributions are welcome: model adapters, tests, rule experiments, observer fea
 [MIT](LICENSE) · © 2026 Kisara-Lab contributors. Use, modify, study and build on the project while retaining the license and copyright notice.
 
 Want to watch AI civilizations meet among the stars? **Star, fork, or bring your own models and start a match.**
+
+## SRAS rules-5 local branch
+
+Select `sras-v1` for deterministic pure-rule planning with crisis recovery, per-object conflict locks, sufficient-force defense, production recovery and task evidence. No search profile, economic forecasts, combat simulations or model calls. Limits remain 48 actions and 128 previews; worker count does not affect decisions. Do not resume historical observations with the new revision. See [rules and validation](docs/sras-rules5.md).
+
+
+## SRAS V1.1
+
+??????? `sras-v1.1`????????????????????????????????????????????????V1?V4.1?
+
+Independent deterministic task rules: actionable fallback, funded production and fleet needs, fixed campaign rosters, recovery and settlement. Inaccessible welfare is distinguished from unaffordable welfare. V1 and V4.1 remain available.
+
+Select SRAS V1.1 in the new-match script selector; pure-script seats make zero model requests. There is no search profile. A minimal configuration patch is:
+
+```json
+{"controller":"scripted","scriptStrategy":"sras-v1.1"}
+```
+
+Apply it to the normal match defaults and omit `scriptSearchProfile`. Creation remains paused. Start from the UI. Do not resume old V1 observations under the new version. Model seats in mixed matches retain their actual model costs.
+
+[????????????? / Rules, evidence and limits](docs/sras11.md). The sole new frozen observation uses port 8793 (8794 if occupied), SRAS V1.1 versus V4.1, and no model credentials. Passing mechanism tests does not establish superior playing strength.
+
+SRAS V1.1 observation status: the sole frozen match stopped at committed round 21 after a planning error. Revision `rules-1.1-2` fixes the reproduced error; no second match was run. [Validation and interrupted observation / ???????](docs/sras11-observation.md). No superiority claim is supported.
+
+## SRAS V1.1 vs grok-4.7: a real win
+
+In an independent four-faction free-for-all (`stars-2026`, 24 systems, 120 rounds, rules 5.4), Verdant used SRAS V1.1 and Cobalt used `grok-4.7`. Verdant finished first with `12,189` points and 12 systems; Cobalt finished second with `9,504` points and 9 systems. The margin was `2,685` points (`28.25%`). Key moments were the round-41 capital capture, round-75 elimination, round-104 recapture, and the round-120 finish.
+
+This is one observed match, not a universal superiority claim. The same match exposed empty plans, governance decline, late reinforcements and low-value movement. See the [sanitized SRAS V1.1 case report](docs/sras11-vs-grok-case.md). Raw saves, private prompts and credentials are not included.

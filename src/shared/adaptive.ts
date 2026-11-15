@@ -19,8 +19,9 @@ export interface ScriptGoal {
   prerequisites: string[]; deadline: number; progress: string; lastProgressRound: number;
 }
 export interface ScriptMemory {
+  sras?: import('./sras11.js').SrasMemory;
   v412?: import('./adaptive-v412.js').MemoryV412;
-  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12'; goal: ScriptGoal | null;
+  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'sras-v1' | 'sras-v1.1'; goal: ScriptGoal | null;
   tasks: { fleetId: string; role: 'defend' | 'assemble' | 'attack' | 'hold' | 'withdraw'; target: string; warId?:string; expiresDay?:number; campaignId?:string }[];
   failures: { key: string; fingerprint: string; round: number; reason: string }[];
   campaign?: { opponent:string; target:string; stage:string; reserve:Record<string,number>; progress:string; lastProgressRound:number; blockers:string[]; nextStep?:string; expectedDay?:number; completion?:string; value?:number; committed?:boolean; paidPower?:number };
@@ -32,8 +33,9 @@ export interface ScriptAlternative {
   reason: string; evidenceDays: number[]; selected: boolean;
 }
 export interface ScriptReport {
+  sras?: import('./sras11.js').SrasReport;
   v412?: import('./adaptive-v412.js').ReportV412;
-  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12'; candidates: number; forecasts: number; validations: number;
+  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'sras-v1' | 'sras-v1.1'; candidates: number; forecasts: number; validations: number;
   v4?: import('./adaptive-v4.js').ReportV4;
   v41?: import('./adaptive-v41.js').ReportV41;
   performance?: Record<string, number>;

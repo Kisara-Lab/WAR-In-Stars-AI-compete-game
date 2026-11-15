@@ -150,6 +150,12 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
   for(const [actor,decision] of Object.entries(decisions)) {
     if(!decision.scriptMemory)continue;
     const memory=structuredClone(decision.scriptMemory);
+    if((memory.version==='sras-v1'||memory.version==='sras-v1.1')&&memory.sras) {
+      for(const task of memory.sras.tasks) {
+        const war=state.wars?.find(candidate=>candidate.endedDay===undefined&&candidate.factions.includes(actor)&&candidate.factions.includes(task.opponent??''));
+        if(war) { task.warId=war.id; task.warType=war.type; }
+      }
+    }
     reconcileWarV41(state,actor,memory);
     reconcileWarV412(state,actor,memory);
     const alive=new Set(state.fleets.filter(fleet=>fleet.ownerId===actor).map(fleet=>fleet.id));

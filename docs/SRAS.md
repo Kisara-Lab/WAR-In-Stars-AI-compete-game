@@ -1,6 +1,6 @@
 # SRAS V1 独立支线
 
-位置：`C:\VSC\github\WAR-In-Stars-AI-compete-game-SRAS`。分支 `feat/sras-v1`。
+SRAS 最初在独立副本的 `feat/sras-v1` 分支开发；现通过策略选择器显式启用。
 
 ## 基线与隔离
 

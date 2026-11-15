@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { V54, emergencyRules } from '../shared/emergency.js';
 import { controllerLabel } from '../shared/controllers.js';
 import { governed, governanceView, V53 } from '../shared/governance.js';
@@ -13,6 +14,17 @@ import { scoreBreakdown } from '../shared/scoring.js';
 import { BASE, RULES, SHIPS, STRUCTURES } from '../shared/rules.js';
 import { POLICIES } from '../shared/civil.js';
 import { V4, WAR_NAMES } from '../shared/v4.js';
+
+function compactAuditValue(value: unknown, field = ''): unknown {
+  if (Array.isArray(value)) return value.map(item => compactAuditValue(item));
+  if (!value || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  const scriptReport = field === 'scriptReport' && typeof record.version === 'string' && record.version.startsWith('adaptive-');
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !(scriptReport && key === 'projections')).map(([key, item]) => [key, compactAuditValue(item, key)]));
+}
+function compactAuditRecord(record: Record<string, unknown>): Record<string, unknown> {
+  return { ...record, data: compactAuditValue(record.data) };
+}
 import { mkdir, open, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -215,19 +227,26 @@ export class MatchStore {
     return {coverage:total?'完整审计日志':'仅旧版快照',total,matched,next:matched>page.length?page.at(-1)?.seq:null,records:page.map(record=>({...record,committed:record.attemptId?committed.has(record.attemptId):null}))};
   }
 
-  async exportAudit(id:string) {
+  async exportAudit(id:string, compact = true) {
     // Compatibility for small programmatic callers. HTTP uses bounded streaming.
     const chunks:string[]=[];let bytes=0;
-    for await(const chunk of this.exportAuditChunks(id)){bytes+=chunk.length;if(bytes>64*1024*1024)throw new Error('Use streaming audit export for journals over 64 MiB');chunks.push(chunk);}
+    for await(const chunk of this.exportAuditChunks(id, compact)){bytes+=chunk.length;if(bytes>64*1024*1024)throw new Error('Use streaming audit export for journals over 64 MiB');chunks.push(chunk);}
     return chunks.join('');
   }
-  async *exportAuditChunks(id:string) {
+  async *exportAuditChunks(id:string, compact = true) {
     await this.auditRecords(id,()=>false); // verify chain before sending any bytes
     const path=join(this.directory(id),'audit.jsonl');
-    try {for await(const chunk of createReadStream(path,{encoding:'utf8'}))yield String(chunk);}
+    try {
+      if(!compact){for await(const chunk of createReadStream(path,{encoding:'utf8'}))yield String(chunk);return;}
+      const lines = createInterface({input:createReadStream(path,{encoding:'utf8'}),crlfDelay:Infinity});
+      for await(const line of lines){if(!line)continue;try{const record=compactAuditRecord(JSON.parse(line));if(record)yield JSON.stringify(record)+'\n';}catch{yield line+'\n';}}
+    }
     catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
       yield JSON.stringify({category:'legacy.coverage',data:'Snapshots only; original requests unavailable'})+'\n';
-      for(const file of (await readdir(this.directory(id))).filter(f=>/^round-\d{4}\.json$/.test(f)).sort())yield JSON.stringify({category:'legacy.round',data:sanitize(JSON.parse(await readFile(join(this.directory(id),file),'utf8')))})+'\n';
+      for(const file of (await readdir(this.directory(id))).filter(f=>/^round-\d{4}\.json$/.test(f)).sort()){
+        const data=sanitize(JSON.parse(await readFile(join(this.directory(id),file),'utf8')));
+        yield JSON.stringify({category:'legacy.round',data:compact?compactAuditValue(data):data})+'\n';
+      }
     }
   }
 

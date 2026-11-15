@@ -105,7 +105,15 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
   });
   app.get('/api/matches/:id/export/:format', async (request, response) => {
     const format = z.enum(['markdown', 'jsonl']).parse(request.params.format);
-    const body = format === 'markdown' ? await runner.store.exportChronicle(request.params.id) : await runner.store.exportAudit(request.params.id);
+    const full = request.query.full === '1' || request.query.full === 'true';
+    if(format === 'jsonl') {
+      response.setHeader('Content-Disposition', `attachment; filename="${request.params.id}.${full ? 'full.' : ''}jsonl"`);
+      response.type('application/x-ndjson');
+      for await(const chunk of runner.store.exportAuditChunks(request.params.id, !full)) response.write(chunk);
+      response.end();
+      return;
+    }
+    const body = await runner.store.exportChronicle(request.params.id);
     response.setHeader('Content-Disposition', `attachment; filename="${request.params.id}.${format === 'markdown' ? 'md' : 'jsonl'}"`);
     response.type(format === 'markdown' ? 'text/markdown' : 'application/x-ndjson').send(body);
   });

@@ -156,7 +156,7 @@ describe('SRAS pure rules',()=>{
   });
   it('clears search profile for SRAS and preserves old defaults',()=>{
     const c=configureSeats({...structuredClone(DEFAULT_CONFIG),controller:'scripted' as const,scriptStrategy:'sras-v1' as const,scriptSearchProfile:'deep' as const});expect(c.scriptSearchProfile).toBeUndefined();expect(()=>validateControllers(c)).not.toThrow();
-    expect(configureSeats({...structuredClone(DEFAULT_CONFIG),controller:'scripted'} as MatchConfig).scriptStrategy).toBe('adaptive-v4.12');
+    expect(configureSeats({...structuredClone(DEFAULT_CONFIG),controller:'scripted'} as MatchConfig).scriptStrategy).toBe('adaptive-v4.15-final');
   });
   it('produces identical actions and memory in 0/2/8 planning workers and after serialization; abort leaves state untouched',async()=>{
     const s=fixture(),before=stateHash(s),results=[];

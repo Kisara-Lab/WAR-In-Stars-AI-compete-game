@@ -10,7 +10,7 @@ import { MatchStore } from './storage.js';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
 const pool = new SimulationPool(Number(process.env.WORKERS ?? defaultWorkers()));
-const providerFactory = async () => new ModelProvider(await readProviderConfig());
+const providerFactory = async () => new ModelProvider(await readProviderConfig(process.env.PROVIDER_CONFIG_PATH));
 const store = new MatchStore(process.env.MATCH_DATA ?? '.data/matches', process.env.SESSION_FILE ?? '.data/server-session.json');
 const checkpoint = await store.sessionCheckpoint();
 const runner = new MatchRunner(checkpoint?.state ?? createGame(structuredClone(DEFAULT_CONFIG)), pool, store, providerFactory);

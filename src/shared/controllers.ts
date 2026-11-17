@@ -18,10 +18,10 @@ export function validateControllers(config: MatchConfig) {
   if (new Set(ids).size !== ids.length) throw new Error('势力清单不能重复');
   if (config.scriptStrategies !== undefined) {
     const strategies = config.scriptStrategies;
-    if (config.controller !== 'scripted' || !['adaptive-v2', 'adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'].includes(config.scriptStrategy ?? '') ||
+    if (!['scripted', 'mixed'].includes(config.controller) || !['adaptive-v2', 'adaptive-v3', 'adaptive-v4', 'adaptive-v4.1', 'adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final', 'sras-v1', 'sras-v1.1','sras-v1.3cerberus'].includes(config.scriptStrategy ?? '') ||
         Object.keys(strategies).length !== ids.length || Object.keys(strategies).some(id => !ids.includes(id)) ||
-        ids.some(id => !['adaptive-v2', 'adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'].includes(strategies[id]))) {
-      throw new Error('脚本对照仅支持纯脚本V4.1/V4.12，策略席位必须完整且与势力清单一致');
+        ids.some(id => !['adaptive-v2', 'adaptive-v3', 'adaptive-v4', 'adaptive-v4.1', 'adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final', 'sras-v1', 'sras-v1.1','sras-v1.3cerberus'].includes(strategies[id]))) {
+      throw new Error('脚本对照须使用支持的纯脚本策略，策略席位必须完整且与势力清单一致');
     }
   }
   if (config.controller === 'mixed') {
@@ -32,7 +32,7 @@ export function validateControllers(config: MatchConfig) {
   const modelIds = config.controller === 'mixed' ? ids.filter(id => factionController(config, id) === 'model') : ids;
   if (modelIds.some(id => !config.models[id]) || Object.keys(config.models).some(id => !modelIds.includes(id))) throw new Error('模型配置必须与模型席位一致');
   if (config.controller === 'model' && (config.scriptStrategy?.startsWith('adaptive-') || config.scriptStrategy?.startsWith('sras-'))) throw new Error('模型局不能配置智能脚本');
-  if (config.scriptSearchProfile !== undefined && !['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(config.scriptStrategy??'')) throw new Error('搜索档位仅用于adaptive-v3/v4');
+  if (config.scriptSearchProfile !== undefined && !['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(config.scriptStrategy??'')) throw new Error('搜索档位仅用于adaptive-v3/v4');
 }
 
 export function configureSeats<Config extends MatchConfig>(config: Config): Config {
@@ -47,8 +47,8 @@ export function configureSeats<Config extends MatchConfig>(config: Config): Conf
     delete next.scriptStrategy;
     delete next.scriptSearchProfile;
   } else {
-    next.scriptStrategy ??= 'adaptive-v4.12';
-    if (['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(next.scriptStrategy)) next.scriptSearchProfile ??= 'standard';
+    next.scriptStrategy ??= 'adaptive-v4.15-final';
+    if (['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(next.scriptStrategy)) next.scriptSearchProfile ??= 'standard';
     else delete next.scriptSearchProfile;
   }
   return next;

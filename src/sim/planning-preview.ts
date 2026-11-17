@@ -10,7 +10,7 @@ export function planningPreview(state:GameState,actor:string,actions:Action[],ca
     const result=stage.execute(action.type,action.args);
     if(!result.ok)return {error:result.error??'条件不满足'};
   }
-  if(state.config.scriptStrategy==='adaptive-v4.12') {
+  if((state.config.scriptStrategy==='adaptive-v4.12'||state.config.scriptStrategy==='adaptive-v4.15'||state.config.scriptStrategy==='adaptive-v4.15-final')) {
     // Compound development targets the future colony, while its production
     // order may be on another, already owned planet. Validate each real queue.
     const targets=new Set(candidate.actions.filter(a=>['build_structure','queue_ships','expand_slots'].includes(a.type)).map(a=>a.args.planetId));
@@ -24,7 +24,7 @@ export function planningPreview(state:GameState,actor:string,actions:Action[],ca
     }
     return {changes:stateChanges(state,stage.draft),actions:stage.actions};
   }
-  if(['build','ships','expand'].includes(candidate.kind)||['adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(state.config.scriptStrategy??'')&&candidate.actions.some(action=>['build_structure','queue_ships','expand_slots'].includes(action.type))) {
+  if(['build','ships','expand'].includes(candidate.kind)||['adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(state.config.scriptStrategy??'')&&candidate.actions.some(action=>['build_structure','queue_ships','expand_slots'].includes(action.type))) {
     const system=stage.draft.systems.find(system=>system.planets.some(planet=>planet.id===candidate.target));
     const planet=system?.planets.find(planet=>planet.id===candidate.target);
     const old=new Set(state.systems.flatMap(system=>system.projects.map(project=>project.id)));

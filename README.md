@@ -1,10 +1,18 @@
-> **SRAS V1 independent side branch**: [rules, local setup and merge notes](docs/SRAS.md). Baseline: `sras-baseline-20261115`; no model calls in SRAS. Existing strategy defaults are unchanged.
+> **SRAS Cerberus 修订3与V4.15正式版**：已集成独立策略入口，旧存档不迁移；新建脚本局默认V4.15-final标准档。SRAS不调用模型。
+
+**两场120轮混合赛简报**：标准档局 Cerberus **11425**、V4.15-final **12245**；深度档局 Cerberus **11270**、V4.15-final **9506.357**，各获一次第一。[完整配置、排名与结果边界](docs/CERBERUS-MIXED-RESULTS.md)。
+
+Cerberus 第三轮 `rules-1.3-cerberus-3`：任务ID绑定、实际交付回执、发展筹资、治理约束及船厂产线排期。参见[规则、验证与剩余边界](CERBERUS-R3-VALIDATION.md)。保留历史冻结局；单场结果不能证明普遍超过V4.15。
+
+本地 Cerberus 第二修订：独立规则协调器、占领守备与真实执行反馈；[验证与边界](CERBERUS-R2-VALIDATION.md)。不以动作增多或切片通过宣称超过 V4.15-final，历史局使用原冻结运行时。
 
 <div align="center">
 
 ## AI VS 智能脚本
 
-新比赛选择“AI VS 智能脚本”，即可逐势力选择模型或脚本，默认交错两模型、两脚本。脚本方共用策略，默认 `adaptive-v4.12` 标准档，也可选择深度档或旧策略；模型方可分别选择模型。
+新比赛选择“AI VS 智能脚本”，即可逐势力选择模型或脚本，默认交错两模型、两脚本。脚本方共用策略，默认 `adaptive-v4.15-final` 标准档，也可选择深度档或旧策略；模型方可分别选择模型。
+
+V4.15正式版增加制度前置生产、责任任务与协调支援；原checkpoint和V4.12仍可独立选择，旧存档不迁移。能力、双场60轮验收方式和局限见 [正式版说明](ADAPTIVE-V4.15-FINAL.md)；原checkpoint见 [V4.15说明](ADAPTIVE-V4.15.md)。脚本不调用模型，混合局仅模型席位产生费用。
 
 - [混合局配置示例](config.mixed.example.json) 可作为 `POST /api/matches` 请求体；`models` 只填写模型席位。
 - 创建后保持停止，点击“开始比赛”或“单轮推进”才决策。仅模型席位消耗接口额度，每方每轮最多3次请求；脚本席位请求和token始终为0。

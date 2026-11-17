@@ -20,8 +20,11 @@ export interface ScriptGoal {
 }
 export interface ScriptMemory {
   sras?: import('./sras11.js').SrasMemory;
+  cerberus?: import('./sras13.js').CerberusMemory;
   v412?: import('./adaptive-v412.js').MemoryV412;
-  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'sras-v1' | 'sras-v1.1'; goal: ScriptGoal | null;
+  v415?: import('./adaptive-v415.js').MemoryV415;
+  v415final?: import('./adaptive-v415final.js').MemoryV415Final;
+  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'adaptive-v4.15' | 'adaptive-v4.15-final' | 'sras-v1' | 'sras-v1.1' | 'sras-v1.3cerberus'; goal: ScriptGoal | null;
   tasks: { fleetId: string; role: 'defend' | 'assemble' | 'attack' | 'hold' | 'withdraw'; target: string; warId?:string; expiresDay?:number; campaignId?:string }[];
   failures: { key: string; fingerprint: string; round: number; reason: string }[];
   campaign?: { opponent:string; target:string; stage:string; reserve:Record<string,number>; progress:string; lastProgressRound:number; blockers:string[]; nextStep?:string; expectedDay?:number; completion?:string; value?:number; committed?:boolean; paidPower?:number };
@@ -34,8 +37,11 @@ export interface ScriptAlternative {
 }
 export interface ScriptReport {
   sras?: import('./sras11.js').SrasReport;
+  cerberus?: import('./sras13.js').CerberusReport;
   v412?: import('./adaptive-v412.js').ReportV412;
-  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'sras-v1' | 'sras-v1.1'; candidates: number; forecasts: number; validations: number;
+  v415?: import('./adaptive-v415.js').ReportV415;
+  v415final?: import('./adaptive-v415final.js').ReportV415Final;
+  version: 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'adaptive-v4.15' | 'adaptive-v4.15-final' | 'sras-v1' | 'sras-v1.1' | 'sras-v1.3cerberus'; candidates: number; forecasts: number; validations: number;
   v4?: import('./adaptive-v4.js').ReportV4;
   v41?: import('./adaptive-v41.js').ReportV41;
   performance?: Record<string, number>;

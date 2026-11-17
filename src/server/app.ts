@@ -1,8 +1,11 @@
+import { ADAPTIVE_V415 } from '../shared/adaptive-v415.js';
+import { ADAPTIVE_V415Final } from '../shared/adaptive-v415final.js';
 import { ADAPTIVE_V412 } from '../shared/adaptive-v412.js';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { SRAS } from '../shared/sras.js';
 import { SRAS as SRAS11 } from '../shared/sras11.js';
+import { SRAS_CERBERUS } from '../shared/sras13.js';
 import { ADAPTIVE_V41 } from '../shared/adaptive-v41.js';
 import { V54 } from '../shared/emergency.js';
 import { factionController, validateControllers } from '../shared/controllers.js';
@@ -37,8 +40,8 @@ const matchSchema = z.strictObject({
   models: z.record(z.string(), modelName),
   controller: z.enum(['model', 'scripted', 'mixed']),
   factionControllers: z.record(z.string(), z.enum(['model', 'scripted'])).optional(),
-  scriptStrategy: z.enum(['legacy','adaptive-v1','adaptive-v2','adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','sras-v1','sras-v1.1']).optional(),
-  scriptStrategies: z.record(z.string(), z.enum(['adaptive-v2', 'adaptive-v4.1', 'adaptive-v4.12', 'sras-v1', 'sras-v1.1'])).optional(),
+  scriptStrategy: z.enum(['legacy','adaptive-v1','adaptive-v2','adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final','sras-v1','sras-v1.1','sras-v1.3cerberus']).optional(),
+  scriptStrategies: z.record(z.string(), z.enum(['adaptive-v2', 'adaptive-v3', 'adaptive-v4', 'adaptive-v4.1', 'adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final', 'sras-v1', 'sras-v1.1','sras-v1.3cerberus'])).optional(),
   scriptSearchProfile:z.enum(['standard','deep']).optional(),
   computeWorkers:z.number().int().min(0).max(64).optional(),
   planningCacheMiB:z.number().int().min(0).max(1048576).optional(),
@@ -64,7 +67,7 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
   app.use(express.json({ limit: '32kb' }));
   app.get('/api/health', (_request, response) => { response.json({ ok: true, workers: runner.pool.size, maxWorkers: maxWorkers() }); });
   app.get('/api/state', (_request, response) => { response.json(runner.snapshot()); });
-  app.get('/api/script-strategy', (_request,response)=>{response.json({default:'adaptive-v4.12',versions:{'adaptive-v1':ADAPTIVE,'adaptive-v2':ADAPTIVE_V2,'adaptive-v3':ADAPTIVE_V3,'adaptive-v4':ADAPTIVE_V4,'adaptive-v4.1':ADAPTIVE_V41,'adaptive-v4.12':ADAPTIVE_V412,'sras-v1':SRAS,'sras-v1.1':SRAS11}});});
+  app.get('/api/script-strategy', (_request,response)=>{response.json({default:'adaptive-v4.15-final',versions:{'adaptive-v1':ADAPTIVE,'adaptive-v2':ADAPTIVE_V2,'adaptive-v3':ADAPTIVE_V3,'adaptive-v4':ADAPTIVE_V4,'adaptive-v4.1':ADAPTIVE_V41,'adaptive-v4.15':ADAPTIVE_V415,'adaptive-v4.15-final':ADAPTIVE_V415Final,'adaptive-v4.12':ADAPTIVE_V412,'sras-v1':SRAS,'sras-v1.1':SRAS11,'sras-v1.3cerberus':SRAS_CERBERUS}});});
   app.get('/api/rules', (_request, response) => { response.json({ civilization: {...CIVILIZATION, revision: V54.revision}, welfare: welfareRules({rulesRevision:V54.revision}), decisionBalance: DECISION_BALANCE, responsibilities: RESPONSIBILITY, modernPolicies: V5_POLICIES, industry: INDUSTRY, effects: BUILDING_EFFECTS, labor: LABOR, expansions: EXPANSIONS, emergency: V54, governance: V53, defaults: DEFAULT_CONFIG, rules: {...RULES,maxActions:actionLimit({rulesRevision:V54.revision}),maxOutputTokens:outputLimit({rulesRevision:V54.revision})}, v4: V4, escalation: ESCALATION, warTypes: WAR_NAMES, structures: STRUCTURES, policies: POLICIES, ships: SHIPS, base: BASE }); });
   app.get('/api/provider', async (_request, response) => {
     try {
@@ -75,12 +78,12 @@ export function createApplication(runner: MatchRunner, providerFactory: () => Pr
   });
   app.post('/api/matches', async (request, response) => {
     const { workers, planningWorkers, forecastWorkers, computeWorkers, planningCacheMiB, ...config } = matchSchema.parse(request.body);
-    if(config.controller!=='model'&&config.scriptStrategy===undefined)config.scriptStrategy='adaptive-v4.12';
-    if(['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(config.scriptStrategy??''))config.scriptSearchProfile??='standard';
+    if(config.controller!=='model'&&config.scriptStrategy===undefined)config.scriptStrategy='adaptive-v4.15-final';
+    if(['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(config.scriptStrategy??''))config.scriptSearchProfile??='standard';
     else if(config.scriptSearchProfile!==undefined)throw new Error('搜索档位仅用于adaptive-v3/v4');
     validateControllers(config);
     const scriptCount = config.factionIds.filter(id => factionController(config, id) === 'scripted').length;
-    const planning=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(config.scriptStrategy??'')?computeConfig(scriptCount,{computeWorkers,planningCacheMiB}):planningConfig(scriptCount,{planningWorkers,forecastWorkers:config.scriptStrategy?.startsWith('sras-')?0:forecastWorkers});
+    const planning=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(config.scriptStrategy??'')?computeConfig(scriptCount,{computeWorkers,planningCacheMiB}):planningConfig(scriptCount,{planningWorkers,forecastWorkers:config.scriptStrategy?.startsWith('sras-')?0:forecastWorkers});
     await runner.create(config, workers,planning); response.json(runner.snapshot());
   });
   app.post('/api/start', (_request, response) => { runner.start(); response.json({ ok: true }); });

@@ -13,5 +13,5 @@ test('V4.1 creation, controller labels and final certificate match accepted acti
   const saved=await(await page.request.get('/api/state')).json();
   for(const decision of Object.values(saved.lastDecisions) as any[]){expect(decision.scriptReport.turn.actions).toBe(decision.actions.length);expect(decision.metrics.requests).toBe(0);}
   await page.getByRole('button',{name:'＋ 新比赛'}).click();
-  await expect(page.locator('select').filter({has:page.locator('option[value="adaptive-v4.1"]')})).toHaveValue('adaptive-v4.12');
+  await expect(page.locator('select').filter({has:page.locator('option[value="adaptive-v4.1"]')})).toHaveValue('adaptive-v4.15-final');
 });

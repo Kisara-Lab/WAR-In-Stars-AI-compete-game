@@ -1,10 +1,18 @@
-> **SRAS V1 independent side branch**: [rules, local setup and merge notes](docs/SRAS.en.md). Baseline: `sras-baseline-20261115`; no model calls in SRAS. Existing strategy defaults are unchanged.
+> **SRAS Cerberus revision 3 and V4.15-final** are independently selectable. Existing saves are not migrated; new scripted matches default to V4.15-final standard. SRAS makes no model calls.
+
+**Two completed 120-round mixed matches:** standard: Cerberus **11425**, V4.15-final **12245**; deep: Cerberus **11270**, V4.15-final **9506.357**. Each takes first place once. [Configuration, rankings and limitations](docs/CERBERUS-MIXED-RESULTS.md).
+
+Cerberus `rules-1.3-cerberus-3` adds explicit task binding, delivery receipts, development funding, governance constraints and per-line ship scheduling. See [rules, verification and remaining limits](CERBERUS-R3-VALIDATION.md). Historical runtimes remain frozen; one match does not establish general superiority over V4.15.
+
+Local Cerberus revision 2 adds an independent rule coordinator, occupation garrisons and actual execution receipts. See [validation and limitations](CERBERUS-R2-VALIDATION.md). More orders or passing slices do not establish superiority over V4.15-final. Historical matches retain their frozen runtime.
 
 <div align="center">
 
 ## AI vs intelligent scripts
 
-Choose **AI VS 智能脚本** in the new-match form and assign each faction to a model or a script. The default alternates two model seats and two script seats. Script seats share a strategy and search profile: `adaptive-v4.12` standard by default, with deep and older strategies available. Model seats choose their models independently.
+Choose **AI VS 智能脚本** in the new-match form and assign each faction to a model or a script. The default alternates two model seats and two script seats. Script seats share a strategy and search profile: `adaptive-v4.15-final` standard by default, with deep and older strategies available. Model seats choose their models independently.
+
+Formal V4.15 adds responsibility prerequisites and coordinated support to the shared development ledger. The original checkpoint and V4.12 remain independently selectable; existing saves are not migrated. See [formal V4.15](ADAPTIVE-V4.15-FINAL.md) for the two fixed round-60 comparisons and limitations, and [checkpoint notes](ADAPTIVE-V4.15.md). Scripts make no model calls; only model seats incur provider costs.
 
 - Use the [mixed configuration example](config.mixed.example.json) as a `POST /api/matches` body. Only model seats appear in `models`.
 - Creation leaves the match stopped. Start or step it explicitly to make decisions. Only model seats use API quota, with at most three requests per faction per round; script seats use zero model requests and tokens.

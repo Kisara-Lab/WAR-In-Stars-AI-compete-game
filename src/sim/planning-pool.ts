@@ -1,3 +1,7 @@
+import { adaptiveV415Decision } from './adaptive-v415.js';
+import { adaptiveV415FinalDecision } from './adaptive-v415final.js';
+import { tacticalV415 } from './adaptive-v415-military.js';
+import { tacticalV415Final } from './adaptive-v415final-military.js';
 import { adaptiveV412Decision } from './adaptive-v412.js';
 import { tacticalV412 } from './adaptive-v412-military.js';
 import { adaptiveV41Decision } from './adaptive-v41.js';
@@ -23,6 +27,7 @@ import type { ScriptCandidate } from './adaptive-types.js';
 import { candidateFacts } from './adaptive-candidates.js';
 import { srasDecision } from './sras.js';
 import { srasDecision as sras11Decision } from './sras11.js';
+import { cerberusDecision } from './sras13-cerberus.js';
 
 export interface PlanningConfig {planningWorkers?:number;forecastWorkers?:number;computeWorkers?:number;planningCacheMiB?:number;v3?:boolean}
 export function computeConfig(factions:number,requested:PlanningConfig={}) {
@@ -140,7 +145,7 @@ export class PlanningPool {
     if(key)this.cache.set(key,result);return result;
   };
   private preview=async(state:GameState,actor:string,actions:Action[],candidate:ScriptCandidate)=>this.forecasts?await this.forecasts.run({kind:'preview',state,actor,actions,candidate}) as ReturnType<typeof planningPreview>:planningPreview(state,actor,actions,candidate);
-  private tactical=async(state:GameState,request:TacticalRequestV4)=>this.forecasts?await this.forecasts.run({kind:'tactical',state,request}) as ReturnType<typeof tacticalV4>:(state.config.scriptStrategy==='adaptive-v4.12'?tacticalV412:state.config.scriptStrategy==='adaptive-v4.1'?tacticalV41:tacticalV4)(state,request);
+  private tactical=async(state:GameState,request:TacticalRequestV4)=>this.forecasts?await this.forecasts.run({kind:'tactical',state,request}) as ReturnType<typeof tacticalV4>:(state.config.scriptStrategy==='adaptive-v4.15-final'?tacticalV415Final:state.config.scriptStrategy==='adaptive-v4.15'?tacticalV415:state.config.scriptStrategy==='adaptive-v4.12'?tacticalV412:state.config.scriptStrategy==='adaptive-v4.1'?tacticalV41:tacticalV4)(state,request);
   private candidates=async(state:GameState,actor:string,limit:number)=>this.forecasts?await this.forecasts.run({kind:'candidates',state,actor,limit}) as ReturnType<typeof candidateFacts>:candidateFacts(state,actor,true,limit,true);
   async decide(state:GameState,signal?:AbortSignal,audit?:(actor:string,input:unknown)=>Promise<void>,strategies?:Record<string,string>,participants?:readonly string[]) {
     if(this.disposed)throw new Error('规划池已关闭');
@@ -157,7 +162,7 @@ export class PlanningPool {
         const known=scriptKnowledge(state,actor),memory=structuredClone(state.factions[actor].scriptMemory);
         if(strategies?.[actor])known.config.scriptStrategy=strategies[actor] as GameState['config']['scriptStrategy'];
         known.factions[actor].scriptMemory=memory;
-        const planner=known.config.scriptStrategy==='sras-v1.1'?sras11Decision:known.config.scriptStrategy==='sras-v1'?srasDecision:known.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:known.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:known.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:known.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
+        const planner=known.config.scriptStrategy==='sras-v1.3cerberus'?cerberusDecision:known.config.scriptStrategy==='sras-v1.1'?sras11Decision:known.config.scriptStrategy==='sras-v1'?srasDecision:known.config.scriptStrategy==='adaptive-v4.15-final'?adaptiveV415FinalDecision:known.config.scriptStrategy==='adaptive-v4.15'?adaptiveV415Decision:known.config.scriptStrategy==='adaptive-v4.12'?adaptiveV412Decision:known.config.scriptStrategy==='adaptive-v4.1'?adaptiveV41Decision:known.config.scriptStrategy==='adaptive-v4'?adaptiveV4Decision:known.config.scriptStrategy==='adaptive-v3'?adaptiveV3Decision:adaptiveV2Decision;
         return this.planning?await this.planning.run({kind:'plan',state:known,actor,memory,roundToken:this.roundToken,useContexts:!!this.config.planningCacheMiB}) as Decision:planner(known,actor,memory,{forecast:this.forecast,preview:this.preview,candidates:this.candidates,tactical:this.tactical,checkpoint:async()=>{await new Promise<void>(resolve=>setImmediate(resolve));if(signal?.aborted)throw new Error('比赛已暂停');},inputAudit:async (input:unknown)=>{this.inputs.set(actor,input);}});
       });
       const decisions=await Promise.all(jobs);

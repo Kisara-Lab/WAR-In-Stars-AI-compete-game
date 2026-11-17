@@ -1,6 +1,9 @@
+import { reconcileWarV415 } from './adaptive-v415-memory.js';
+import { reconcileWarV415Final } from './adaptive-v415final-memory.js';
 import { reconcileWarV412 } from './adaptive-v412-memory.js';
 import { reconcileSras } from './sras-feedback.js';
 import { reconcileSras as reconcileSras11 } from './sras11-feedback.js';
+import { reconcileSrasCerberus } from './sras13-feedback.js';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
 import { ADAPTIVE } from '../shared/adaptive.js';
@@ -154,14 +157,15 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
     const memory=structuredClone(decision.scriptMemory);
     reconcileSras(state,actor,memory,decision);
     reconcileSras11(state,actor,memory,decision);
+    reconcileSrasCerberus(state,actor,memory,decision);
     reconcileWarV41(state,actor,memory);
-    reconcileWarV412(state,actor,memory);
+    if(memory.version==='adaptive-v4.15-final')reconcileWarV415Final(state,actor,memory);else if(memory.version==='adaptive-v4.15')reconcileWarV415(state,actor,memory);else reconcileWarV412(state,actor,memory);
     const alive=new Set(state.fleets.filter(fleet=>fleet.ownerId===actor).map(fleet=>fleet.id));
     memory.tasks=memory.tasks.filter(task=>alive.has(task.fleetId)).map(task=>{
       const fleet=state.fleets.find(fleet=>fleet.id===task.fleetId)!;
       // V4.12 assembly/support arrival is not occupation. Its role is reconciled
       // against the actual campaign and ship identities at the next boundary.
-      if(memory.version==='adaptive-v4.12')return task;
+      if(memory.version==='adaptive-v4.12'||memory.version==='adaptive-v4.15'||memory.version==='adaptive-v4.15-final')return task;
       return {...task,role:fleet.systemId===task.target&&!fleet.order?'hold':task.role};
     });
     for(const event of state.events.filter(event=>event.round===state.round&&event.type==='order'&&event.audience.includes(actor))) {
@@ -169,8 +173,8 @@ export function commitScriptMemory(state:GameState,decisions:Record<string,Decis
       if(details?.factionId!==actor||details.accepted!==false||!details.action)continue;
       const selected=decision.scriptReport?.selected.find(item=>item.actions.some(action=>JSON.stringify(action)===JSON.stringify(details.action)));
       if(selected) {
-        const reason=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(memory.version)?/资源|不足|费用|余额/.test(details.reason??'')?'资源条件未满足':/通行|闭境|边境|路径/.test(details.reason??'')?'路径通行条件未满足':/舰队|fleet/i.test(details.reason??'')?'舰队状态未满足':'共同结算归属或施工条件未满足':'共同结算未执行；等待对应本方事实或情报更新';
-        memory.failures.push({key:selected.id,fingerprint:['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(memory.version)?v3FailureDependency(scriptKnowledge(state,actor),actor,selected.actions,reason):selected.fingerprint,round:state.round,reason});
+        const reason=['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(memory.version)?/资源|不足|费用|余额/.test(details.reason??'')?'资源条件未满足':/通行|闭境|边境|路径/.test(details.reason??'')?'路径通行条件未满足':/舰队|fleet/i.test(details.reason??'')?'舰队状态未满足':'共同结算归属或施工条件未满足':'共同结算未执行；等待对应本方事实或情报更新';
+        memory.failures.push({key:selected.id,fingerprint:['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(memory.version)?v3FailureDependency(scriptKnowledge(state,actor),actor,selected.actions,reason):selected.fingerprint,round:state.round,reason});
       }
     }
     memory.failures=memory.failures.slice(-64);

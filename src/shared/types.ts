@@ -115,9 +115,9 @@ export interface MatchConfig {
   models: Record<FactionId, string>;
   controller: 'model' | 'scripted' | 'mixed';
   factionControllers?: Record<FactionId, 'model' | 'scripted'>;
-  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'sras-v1' | 'sras-v1.1';
+  scriptStrategy?: 'legacy' | 'adaptive-v1' | 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'adaptive-v4.15' | 'adaptive-v4.15-final' | 'sras-v1' | 'sras-v1.1' | 'sras-v1.3cerberus';
   /** Explicit, persisted roster for pure-script comparison matches. */
-  scriptStrategies?: Record<FactionId, 'adaptive-v2' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'sras-v1' | 'sras-v1.1'>;
+  scriptStrategies?: Record<FactionId, 'adaptive-v2' | 'adaptive-v3' | 'adaptive-v4' | 'adaptive-v4.1' | 'adaptive-v4.12' | 'adaptive-v4.15' | 'adaptive-v4.15-final' | 'sras-v1' | 'sras-v1.1' | 'sras-v1.3cerberus'>;
   scriptSearchProfile?: 'standard' | 'deep';
 }
 export interface GameEvent {

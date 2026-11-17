@@ -3,7 +3,7 @@ import { supportedAt } from '../shared/emergency.js';
 import type { GameState } from '../shared/types.js';
 
 export interface ForecastScenario {
-  version?: 'v4' | 'v4.1' | 'v4.12';
+  version?: 'v4' | 'v4.1' | 'v4.12' | 'v4.15' | 'v4.15-final';
   actionable: boolean;
   successDay?: number;
   rescueDueDay?: number;

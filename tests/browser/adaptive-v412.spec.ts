@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {DEFAULT_CONFIG} from '../../src/shared/rules.js';
 test('V4.12 default, cause diagnostics, campaign roles and exact submitted certificate',async({page})=>{
   test.setTimeout(60000);
-  const response=await page.request.post('/api/matches',{data:{...DEFAULT_CONFIG,controller:'scripted',computeWorkers:0,planningCacheMiB:0,maxRounds:3}});
+  const response=await page.request.post('/api/matches',{data:{...DEFAULT_CONFIG,controller:'scripted',scriptStrategy:'adaptive-v4.12',computeWorkers:0,planningCacheMiB:0,maxRounds:3}});
   expect(response.ok()).toBe(true);
   const created=await response.json();expect(created.state.config.scriptStrategy).toBe('adaptive-v4.12');expect(created.status.running).toBe(false);
   await page.goto('/');await page.getByRole('button',{name:'▷ 单轮推进'}).click();
@@ -16,6 +16,6 @@ test('V4.12 default, cause diagnostics, campaign roles and exact submitted certi
   for(const decision of Object.values(saved.lastDecisions) as any[]){expect(decision.scriptReport.turn.actions).toBe(decision.actions.length);expect(decision.scriptReport.v412.finalCertificate).toBeTruthy();expect(decision.metrics.requests).toBe(0);}
   await page.screenshot({path:(process.env.V412_BROWSER_DATA??'.data/verification/adaptive-v412/development-browser')+'-panel.png',fullPage:true});
   await page.getByRole('button',{name:'＋ 新比赛'}).click();
-  await expect(page.getByLabel('脚本策略')).toHaveValue('adaptive-v4.12');
+  await expect(page.getByLabel('脚本策略')).toHaveValue('adaptive-v4.15-final');
   await expect(page.getByLabel('搜索档位')).toHaveValue('standard');
 });

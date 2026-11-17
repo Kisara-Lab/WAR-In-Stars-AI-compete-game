@@ -82,6 +82,33 @@ it('dispatches model seats only, uses the same boundary, and restores the saved 
   expect(await runner.store.exportChronicle(runner.state.id)).toContain('智能脚本 · adaptive-v3');
 });
 
+it.each(['standard', 'deep'] as const)('persists the Cerberus/V1.1/V4.15/model roster with %s search', async profile => {
+  const provider = fakeProvider();
+  const decide = vi.spyOn(provider, 'decide');
+  const runner = await fixture(provider);
+  const selected: MatchConfig = {
+    ...config(), scriptStrategy: 'adaptive-v4.15-final', scriptSearchProfile: profile,
+    factionControllers: { aurora: 'scripted', umbra: 'scripted', verdant: 'scripted', cobalt: 'model' },
+    scriptStrategies: { aurora: 'sras-v1.3cerberus', umbra: 'sras-v1.1', verdant: 'adaptive-v4.15-final', cobalt: 'sras-v1.3cerberus' },
+    models: { cobalt: 'grok-4.7' },
+  };
+  expect(() => validateControllers(selected)).not.toThrow();
+  await runner.create(selected, 0, { computeWorkers: 0, planningCacheMiB: 0 });
+  runner.start(true); await runner.waitIdle();
+  expect(runner.status.error).toBeNull();
+  expect(runner.state.round).toBe(1);
+  expect(decide.mock.calls.map(call => call[1])).toEqual(['cobalt']);
+  for (const actor of ['aurora', 'umbra', 'verdant']) {
+    expect(runner.lastDecisions![actor].scriptReport?.version).toBe(selected.scriptStrategies![actor]);
+    expect(runner.state.factions[actor].scriptMemory?.version).toBe(selected.scriptStrategies![actor]);
+    expect(runner.status.metrics[actor].requests).toBe(0);
+  }
+  const saved = await runner.store.load(runner.state.id);
+  await runner.recover(saved);
+  expect(runner.state.config).toEqual(selected);
+  expect(stateHash(runner.state)).toBe(saved.hash);
+});
+
 it('model failure cancels planning and preserves the whole boundary and incurred usage', async () => {
   const provider = fakeProvider();
   let release!: () => void;

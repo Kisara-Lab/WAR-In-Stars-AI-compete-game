@@ -189,8 +189,8 @@ export class MatchRunner {
     const decideScripts = async () => {
       if (!scriptIds.length) return;
       let planned: Record<FactionId, Decision> = {};
-      if (['adaptive-v2', 'adaptive-v3', 'adaptive-v4', 'adaptive-v4.1','adaptive-v4.12','sras-v1','sras-v1.1'].includes(base.config.scriptStrategy ?? '') && this.scriptController === scriptedDecision) {
-        if (!this.planningPool || this.planningPool.closed) this.planningPool = new PlanningPool(base.config.factionIds.filter(id => factionController(base.config, id) === 'scripted').length, { ...this.planningOptions, ...(base.config.scriptStrategy?.startsWith('sras-')?{forecastWorkers:0}:{}), v3: ['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12'].includes(base.config.scriptStrategy??'') });
+      if (['adaptive-v2', 'adaptive-v3', 'adaptive-v4', 'adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final','sras-v1','sras-v1.1','sras-v1.3cerberus'].includes(base.config.scriptStrategy ?? '') && this.scriptController === scriptedDecision) {
+        if (!this.planningPool || this.planningPool.closed) this.planningPool = new PlanningPool(base.config.factionIds.filter(id => factionController(base.config, id) === 'scripted').length, { ...this.planningOptions, ...(base.config.scriptStrategy?.startsWith('sras-')?{forecastWorkers:0}:{}), v3: ['adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final'].includes(base.config.scriptStrategy??'') });
         planned = await this.planningPool.decide(base, abort.signal, async (actor, input) => { await this.audit('script.input', input, actor); }, base.config.scriptStrategies, scriptIds);
         await this.audit('script.performance', this.planningPool.metrics);
       } else for (const factionId of scriptIds) {
@@ -270,7 +270,7 @@ export class MatchRunner {
     if (abort.signal.aborted) { this.status.phase = 'paused'; return; }
     const saveStarted=performance.now();
     await this.store.commit({ round: next.round, decisions, hash, state: next, attemptId: this.attemptId, auditHash: prepared.hash, metrics: structuredClone(this.status.metrics) }, checkpoint, () => { this.state = next; this.lastDecisions = decisions; this.attemptId = undefined; });
-    if(['adaptive-v2','adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','sras-v1','sras-v1.1'].includes(next.config.scriptStrategy??''))await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
+    if(['adaptive-v2','adaptive-v3','adaptive-v4','adaptive-v4.1','adaptive-v4.12','adaptive-v4.15','adaptive-v4.15-final','sras-v1','sras-v1.1','sras-v1.3cerberus'].includes(next.config.scriptStrategy??''))await this.audit('script.saved',{durationMs:performance.now()-saveStarted,hash});
     this.emit();
     await new Promise<void>(resolve => setImmediate(resolve));
   }

@@ -1,3 +1,5 @@
+import { positionValueV415 } from './adaptive-v415-values.js';
+import { positionValueV415Final } from './adaptive-v415final-values.js';
 import { applyExtractionRecovery } from './emergency.js';
 import { responsible } from '../shared/responsibility.js';
 import { previewDraft } from './preview.js';
@@ -30,7 +32,7 @@ export function economicForecast(original: GameState, actor: string, horizons: r
   const state = previewDraft(original);
   state.config.factionIds = [actor];
   state.factions = { [actor]: state.factions[actor] };
-  state.systems = state.systems.filter(s=>s.ownerId===actor || controller(s)===actor || (scenario?.version==='v4'||scenario?.version==='v4.1'||scenario?.version==='v4.12')&&!s.ownerId&&s.projects.some(p=>p.ownerId===actor&&p.kind==='base')).map(s=>({ ...s, projects: s.projects.filter(p=>p.ownerId===actor && p.kind!=='survey'&&((scenario?.version==='v4'||scenario?.version==='v4.1'||scenario?.version==='v4.12')||p.kind!=='base')) }));
+  state.systems = state.systems.filter(s=>s.ownerId===actor || controller(s)===actor || (scenario?.version==='v4'||scenario?.version==='v4.1'||(scenario?.version==='v4.12'||(scenario?.version==='v4.15'||scenario?.version==='v4.15-final')))&&!s.ownerId&&s.projects.some(p=>p.ownerId===actor&&p.kind==='base')).map(s=>({ ...s, projects: s.projects.filter(p=>p.ownerId===actor && p.kind!=='survey'&&((scenario?.version==='v4'||scenario?.version==='v4.1'||(scenario?.version==='v4.12'||(scenario?.version==='v4.15'||scenario?.version==='v4.15-final')))||p.kind!=='base')) }));
   state.fleets = state.fleets.filter(f=>f.ownerId===actor).map(f=>({...f, order:null, systemId:state.systems.some(s=>s.id===f.systemId&&controller(s)===actor)?f.systemId:null}));
   state.relations = Object.fromEntries(Object.entries(state.relations).filter(([,r])=>r.factions.includes(actor)));
   state.events=[];
@@ -53,11 +55,11 @@ export function economicForecast(original: GameState, actor: string, horizons: r
     const factors=economyFactors(state);
     for (const phase of ['advance','economy'] as const) {
       if(phase==='economy'&&modern(state)) factors[actor].welfareQuote=welfareQuote(state,actor,10);
-      const included=new Set(state.systems.filter(s=>controller(s)===actor||(scenario?.version==='v4'||scenario?.version==='v4.1'||scenario?.version==='v4.12')&&phase==='advance'&&!s.ownerId&&s.projects.some(p=>p.ownerId===actor&&p.kind==='base')).map(s=>s.id));
+      const included=new Set(state.systems.filter(s=>controller(s)===actor||(scenario?.version==='v4'||scenario?.version==='v4.1'||(scenario?.version==='v4.12'||(scenario?.version==='v4.15'||scenario?.version==='v4.15-final')))&&phase==='advance'&&!s.ownerId&&s.projects.some(p=>p.ownerId===actor&&p.kind==='base')).map(s=>s.id));
       const output=processLocal({ phase, day:state.day, seed:state.config.seed, systems:state.systems.filter(s=>included.has(s.id)), fleets:state.fleets.filter(f=>f.systemId), factions:factors, relations:state.relations, wars:state.wars });
       output.systems.push(...state.systems.filter(s=>!included.has(s.id)));
       mergePhase(state,phase,[output]);
-      if(phase==='economy') receipt=settleEconomy(state,[output],factors,(scenario?.version==='v4'||scenario?.version==='v4.1'||scenario?.version==='v4.12'))[0];
+      if(phase==='economy') receipt=settleEconomy(state,[output],factors,(scenario?.version==='v4'||scenario?.version==='v4.1'||(scenario?.version==='v4.12'||(scenario?.version==='v4.15'||scenario?.version==='v4.15-final'))))[0];
     }
     if(scenario)forecastResponsibility(state,actor,scenario);
     if(modern(state)) trackCivilization(state,{[actor]:factors[actor].unity});
@@ -75,7 +77,7 @@ export function economicForecast(original: GameState, actor: string, horizons: r
     if(scenario)trajectory.push({day:state.day,unity:faction.unity/100,quality:governanceView(state,actor).quality,welfare:faction.welfare?.last?.fraction??1});
     shortageDays+=Object.values(faction.shortages).some(Boolean)?10:0;
     unpaidDays+=modern(state)&&faction.welfare?.last?.fraction!==1?10:0;
-    if((scenario?.version==='v4'||scenario?.version==='v4.1'||scenario?.version==='v4.12')) {
+    if((scenario?.version==='v4'||scenario?.version==='v4.1'||(scenario?.version==='v4.12'||(scenario?.version==='v4.15'||scenario?.version==='v4.15-final')))) {
       for(const resource of ['energy','food','minerals'] as const) {
         // Exact ten-day payment receipt includes special subsidies and prepaid inputs once.
         const required=receipt?.upkeep[resource]??0;
@@ -88,7 +90,7 @@ export function economicForecast(original: GameState, actor: string, horizons: r
       else recoveryDay??=state.day;
       trajectory.at(-1)!.risk={shortageDays,shortageSeverity,unpaidDays,unpaidSeverity,lowUnityDays,recoveryDay,shortfall:{...shortfall},value:0};
     }
-    if(scenario?.version==='v4.12') {
+    if((scenario?.version==='v4.12'||(scenario?.version==='v4.15'||scenario?.version==='v4.15-final'))) {
       const paid=faction.welfare?.last;
       const funding=paid?Math.max(0,...(['energy','food','minerals'] as const).map(r=>Math.max(0,paid.deliverable[r]-paid.paid[r])/Math.max(1,paid.deliverable[r]))):0;
       const blocked=paid&&paid.population>0?1-paid.reachablePopulation/paid.population:0;
@@ -101,7 +103,7 @@ export function economicForecast(original: GameState, actor: string, horizons: r
     if(faction.faith) faction.faith.pending=[];
     if(horizons.some(days=>Math.ceil(days/10)==step+1)) result.push({days:state.day-start,resources:Object.fromEntries(Object.entries(faction.resources).map(([k,v])=>[k,v/1000])),unity:faction.unity/100,population:state.systems.flatMap(s=>s.planets).filter(p=>p.ownerId===actor).reduce((n,p)=>n+p.population,0),remainingProjects:state.systems.flatMap(s=>s.projects).map(p=>({id:p.id,kind:p.kind,progressDays:p.progress/1000})),shortageDays,unpaidDays,policy:faction.policy?.choice});
     if(scenario&&result.at(-1)?.days===state.day-start)result.at(-1)!.governance={minimumUnity,lowUnityDays,quality:governanceView(state,actor).quality,adjustedSocial:governanceView(state,actor).adjustedSocial,crisis:faction.faith?.crisis??0,dissatisfaction:faction.responsibility?.dissatisfaction??0,responsibilityPenalty:faction.responsibility?.rescuePenalty??0,fleetScore:state.fleets.filter(fleet=>fleet.ownerId===actor).flatMap(fleet=>fleet.ships).reduce((sum,ship)=>sum+SHIPS[ship.type].power*ESCALATION.fleetScoreFactor,0),score:scoreBreakdown(state,actor).total,sensors:state.systems.filter(system=>controller(system)===actor&&!faction.shortages.energy&&!faction.shortages.minerals&&system.planets.some(planet=>planet.ownerId===actor&&support(planet,'lrs',state.day)===1)).map(system=>system.id)};
-    if(scenario&&result.at(-1)?.days===state.day-start)Object.assign(result.at(-1)!.governance!,{openingUnity,futureMinimumUnity,value:(scenario.version==='v4.12'?positionValueV412:(scenario.version==='v4'||scenario.version==='v4.1')?positionValueV4:v3PositionValue)(state,actor,scenario.endDay??start+(original.config.maxRounds-original.round)*100,scenario.coverage)});
+    if(scenario&&result.at(-1)?.days===state.day-start)Object.assign(result.at(-1)!.governance!,{openingUnity,futureMinimumUnity,value:(scenario.version==='v4.15-final'?positionValueV415Final:scenario.version==='v4.15'?positionValueV415:scenario.version==='v4.12'?positionValueV412:(scenario.version==='v4'||scenario.version==='v4.1')?positionValueV4:v3PositionValue)(state,actor,scenario.endDay??start+(original.config.maxRounds-original.round)*100,scenario.coverage)});
     state.events=[];
   }
   return {...(scenario?{trajectory,scenario}:{}),...(responsible(original)?{responsibilityAssumption:scenario?'当前可见合法路径固定；逐步推进责任压力、已知短缺和恢复；成功日仅为明确标记的条件情景':'未来责任压力与外国履约固定为当前状态；不假设战争成果或提案成功，援助出资方不假设未知余额返还'}:{}),assumptions:scenario?'推进本国已付款项目、经济、人口、凝聚力和治理；控制权、外国行为及可见责任路径固定，不推断未知敌方资产或战争胜利。':'只推进本国已知已付款项目、人口、经济及已提交政策；控制权、战争负担、信仰危机与对外关系冻结。无新订单、无未知敌军、无战争胜利假设；供应、队列及未来战争可能改变结果。航道舰船保持航道维护。', completedProjects, horizons:result};
